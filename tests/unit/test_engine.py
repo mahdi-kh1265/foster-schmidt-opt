@@ -27,10 +27,10 @@ def test_allocate_budgets_rounding():
 
     # If budget = 60
     budget_map, n_dropped, truncated = _allocate_budgets(
-        domains=[mock_domain1, mock_domain2], # best first
+        domains=[mock_domain1, mock_domain2],  # best first
         de_budget=60,
         pop_multiplier=5,
-        domain_deb_keys={"d1": (1,), "d2": (2,)}
+        domain_deb_keys={"d1": (1,), "d2": (2,)},
     )
 
     assert n_dropped == 0
@@ -39,22 +39,25 @@ def test_allocate_budgets_rounding():
 
     # If budget = 40, d2 dropped
     budget_map, n_dropped, truncated = _allocate_budgets(
-        domains=[mock_domain1, mock_domain2], # best first
+        domains=[mock_domain1, mock_domain2],  # best first
         de_budget=40,
         pop_multiplier=5,
-        domain_deb_keys={"d1": (1,), "d2": (2,)}
+        domain_deb_keys={"d1": (1,), "d2": (2,)},
     )
     assert n_dropped == 1
     assert truncated
     assert "d1" in budget_map
     assert "d2" not in budget_map
 
+
 @patch("foster_eom.optimize.engine.run_preflight")
 @patch("foster_eom.optimize.engine.group_seeds_into_domains")
 @patch("foster_eom.optimize.engine.evaluate")
 @patch("foster_eom.optimize.engine.run_de")
 @patch("foster_eom.optimize.engine.polish_top_k")
-def test_engine_skips_zero_dimensional(mock_polish, mock_run_de, mock_eval, mock_group, mock_preflight):
+def test_engine_skips_zero_dimensional(
+    mock_polish, mock_run_de, mock_eval, mock_group, mock_preflight
+):
     """Verify correctly skips zero-dimensional domains DE and directly evaluates."""
     mock_preflight.return_value = PreflightReport(passed=True, errors=(), warnings=())
 
@@ -78,15 +81,30 @@ def test_engine_skips_zero_dimensional(mock_polish, mock_run_de, mock_eval, mock
 
     # Mock seed evaluate
     mock_eval.return_value = MagicMock(
-        x=(), objective_value=1.0, base_objective_value=1.0, soft_penalty_total=0.0,
-        objective_terms={"total": 1.0}, hard_margins=(), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        target_solutions=[], coarse_evaluated=False,
+        x=(),
+        objective_value=1.0,
+        base_objective_value=1.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 1.0},
+        hard_margins=(),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        target_solutions=[],
+        coarse_evaluated=False,
     )
 
     # mock DE
     from foster_eom.optimize.de_runner import DEDiagnostics
-    mock_run_de.return_value = ([], DEDiagnostics("0d_domain", 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1.0, True, "zero_dim"))
+
+    mock_run_de.return_value = (
+        [],
+        DEDiagnostics("0d_domain", 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1.0, True, "zero_dim"),
+    )
 
     mock_polish.return_value = []
 
@@ -94,9 +112,7 @@ def test_engine_skips_zero_dimensional(mock_polish, mock_run_de, mock_eval, mock
     seed.branch1_solve = None
     seed.branch2_solve = None
 
-    seed_res = SeedGenerationResult(
-        seeds=(seed,), diagnostics=MagicMock()
-    )
+    seed_res = SeedGenerationResult(seeds=(seed,), diagnostics=MagicMock())
 
     opt_spec = OptimizationSpec(max_global_evaluations=1000)
 
@@ -106,8 +122,12 @@ def test_engine_skips_zero_dimensional(mock_polish, mock_run_de, mock_eval, mock
         source_spec=SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=10.0),
         eom_model=MagicMock(spec=OnePortModel),
         component_limits=ContinuousLimits(c_min_f=1e-12, c_max_f=1e-6, l_min_h=1e-9, l_max_h=1e-3),
-        match_constraints=MatchConstraints(gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0),
-        stress_constraints=StressConstraints(source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0),
+        match_constraints=MatchConstraints(
+            gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0
+        ),
+        stress_constraints=StressConstraints(
+            source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0
+        ),
         target_frequencies_hz=(1e6,),
         sweep_f_min_hz=1e5,
         sweep_f_max_hz=1e7,
@@ -121,6 +141,7 @@ def test_engine_skips_zero_dimensional(mock_polish, mock_run_de, mock_eval, mock
     assert res.run_manifest.n_domains_optimized == 1
     # Check that candidate returned is the seed candidate
     assert len(res.candidates) == 1
+
 
 @patch("foster_eom.optimize.engine.run_preflight")
 @patch("foster_eom.optimize.engine.group_seeds_into_domains")
@@ -144,8 +165,12 @@ def test_rejects_infeasible_domains(mock_run_de, mock_eval, mock_group, mock_pre
         source_spec=SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=10.0),
         eom_model=MagicMock(spec=OnePortModel),
         component_limits=ContinuousLimits(c_min_f=1e-12, c_max_f=1e-6, l_min_h=1e-9, l_max_h=1e-3),
-        match_constraints=MatchConstraints(gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0),
-        stress_constraints=StressConstraints(source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0),
+        match_constraints=MatchConstraints(
+            gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0
+        ),
+        stress_constraints=StressConstraints(
+            source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0
+        ),
         target_frequencies_hz=(1e6,),
         sweep_f_min_hz=1e5,
         sweep_f_max_hz=1e7,

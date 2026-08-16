@@ -38,29 +38,38 @@ def test_checkpointing(mock_de, mock_eval, mock_group, mock_preflight, mock_save
     seed.branch1_solve = None
     seed.branch2_solve = None
 
-    seed_res = SeedGenerationResult(
-        seeds=(seed,), diagnostics=MagicMock()
-    )
+    seed_res = SeedGenerationResult(seeds=(seed,), diagnostics=MagicMock())
 
     opt_spec = OptimizationSpec(max_global_evaluations=1000, checkpoint_every_evaluations=100)
 
     mock_eval.return_value = MagicMock(
-        x=(0.1, 0.2), objective_value=1.0, base_objective_value=1.0, soft_penalty_total=0.0,
-        objective_terms={"total": 1.0}, hard_margins=(), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        target_solutions=[], coarse_evaluated=False,
+        x=(0.1, 0.2),
+        objective_value=1.0,
+        base_objective_value=1.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 1.0},
+        hard_margins=(),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        target_solutions=[],
+        coarse_evaluated=False,
     )
+
+    mock_cache = MagicMock()
+    mock_cache._cache = {"dummy_key": mock_eval.return_value}
 
     def side_effect_de(*args, **kwargs):
         # simulate some evaluations by advancing cache
         # the callback checks cache.n_unique_evaluations
         callback = kwargs.get("callback")
         if callback:
-            # First eval bump
-            # We don't have direct access to cache here easily, but the callback relies on it.
-            # Mocking it properly would mean evaluating through _obj, but let's just trigger the callback
-            # and let the test verify it tries to write.
-            callback(MagicMock(x=[0.1,0.2]))
+            mock_cache.n_unique_evaluations += 150
+            callback(MagicMock(x=[0.1, 0.2]))
         return MagicMock(x=np.array([0.1, 0.2]), message="ok", success=True)
 
     mock_de.side_effect = side_effect_de
@@ -69,9 +78,8 @@ def test_checkpointing(mock_de, mock_eval, mock_group, mock_preflight, mock_save
 
     # Needs to bypass actual evaluation if it accesses mock cache, but let's see
     with patch("foster_eom.optimize.engine.DomainEvaluatorCache") as mock_cache_cls:
-        mock_cache = MagicMock()
-        # Set evaluation count high enough to trigger callback difference
-        mock_cache.n_unique_evaluations = 150
+        # Set evaluation count low before DE starts
+        mock_cache.n_unique_evaluations = 0
         mock_cache_cls.return_value = mock_cache
 
         run_optimization(
@@ -79,19 +87,26 @@ def test_checkpointing(mock_de, mock_eval, mock_group, mock_preflight, mock_save
             opt_spec=opt_spec,
             source_spec=SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=10.0),
             eom_model=MagicMock(spec=OnePortModel),
-            component_limits=ContinuousLimits(c_min_f=1e-12, c_max_f=1e-6, l_min_h=1e-9, l_max_h=1e-3),
-            match_constraints=MatchConstraints(gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0),
-            stress_constraints=StressConstraints(source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0),
+            component_limits=ContinuousLimits(
+                c_min_f=1e-12, c_max_f=1e-6, l_min_h=1e-9, l_max_h=1e-3
+            ),
+            match_constraints=MatchConstraints(
+                gamma_max=0.5, resistance_max_ohm=100.0, max_abs_reactance_ohm=50.0
+            ),
+            stress_constraints=StressConstraints(
+                source_current_rms_max_a=1.0, off_target_eom_peak_rms_v=5.0
+            ),
             target_frequencies_hz=(1e6,),
             sweep_f_min_hz=1e5,
             sweep_f_max_hz=1e7,
-            checkpoint_path=checkpoint_file
+            checkpoint_path=checkpoint_file,
         )
 
     # verify save_results was called for checkpoint
     assert mock_save.call_count >= 1
     call_args = mock_save.call_args[0]
     assert call_args[1] == checkpoint_file
+
 
 def test_warm_restarts():
     """Verify warm start candidates can be passed."""
@@ -108,6 +123,6 @@ def test_warm_restarts():
         n_dim=2,
         random_seed=42,
         domain_id="d1",
-        warm_start_candidates=[cand]
+        warm_start_candidates=[cand],
     )
     assert pop.shape == (10, 2)

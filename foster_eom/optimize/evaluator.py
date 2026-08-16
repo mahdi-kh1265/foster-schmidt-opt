@@ -49,10 +49,10 @@ class EvaluationResult:
     x: tuple[float, ...]
 
     # Canonical objective
-    objective_value: float      # J_total = J_base + J_soft
+    objective_value: float  # J_total = J_base + J_soft
     base_objective_value: float
     soft_penalty_total: float
-    objective_terms: dict[str, float]   # "total", "base", "soft_penalty", "j_gamma", ...
+    objective_terms: dict[str, float]  # "total", "base", "soft_penalty", "j_gamma", ...
 
     # Hard constraint margins (fixed-length, deterministic order)
     hard_margins: tuple[float, ...]
@@ -67,10 +67,10 @@ class EvaluationResult:
     near_feasible: bool
 
     # Numerical status
-    numerical_status: str          # "ok" | "mna_singular" | "nonfinite" | "component_invalid"
+    numerical_status: str  # "ok" | "mna_singular" | "nonfinite" | "component_invalid"
     numerical_failure_reason: str | None
     failed_frequency_hz: float | None
-    failed_stage: str | None       # "target" | "coarse"
+    failed_stage: str | None  # "target" | "coarse"
 
     # Circuit solutions (one per evaluation frequency)
     all_solutions: tuple[CircuitSolution, ...]
@@ -97,8 +97,8 @@ class EvaluationContext:
     stress_constraints: StressConstraints
 
     # Compiled frequency structure
-    evaluation_frequencies_hz: tuple[float, ...]    # unique, sorted
-    target_indices: tuple[int, ...]                  # into evaluation_frequencies_hz
+    evaluation_frequencies_hz: tuple[float, ...]  # unique, sorted
+    target_indices: tuple[int, ...]  # into evaluation_frequencies_hz
     off_target_indices: tuple[int, ...]
     off_target_mask: tuple[bool, ...]
 
@@ -207,14 +207,15 @@ def _evaluate_uncached(
     domain = context.domain
     mapper = domain.variable_mapper
     n_hard = context.hard_layout.n
-    n_soft = context.soft_layout.n
 
     # -- Unpack decision vector --
     try:
         b1, b2 = mapper.unpack(x)
     except (ValueError, AssertionError) as exc:
         return _failure_result(
-            x_key, n_hard, context,
+            x_key,
+            n_hard,
+            context,
             status="component_invalid",
             reason=f"unpack failed: {exc}",
         )
@@ -224,7 +225,9 @@ def _evaluate_uncached(
         _validate_components(b1, b2)
     except ValueError as exc:
         return _failure_result(
-            x_key, n_hard, context,
+            x_key,
+            n_hard,
+            context,
             status="component_invalid",
             reason=str(exc),
         )
@@ -234,7 +237,9 @@ def _evaluate_uncached(
         graph = _build_graph(b1, b2, domain, context.eom_model, domain.canonical_sign_pattern)
     except (ValueError, AssertionError) as exc:
         return _failure_result(
-            x_key, n_hard, context,
+            x_key,
+            n_hard,
+            context,
             status="component_invalid",
             reason=f"graph build failed: {exc}",
         )
@@ -248,7 +253,9 @@ def _evaluate_uncached(
             sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
         except np.linalg.LinAlgError as exc:
             return _failure_result(
-                x_key, n_hard, context,
+                x_key,
+                n_hard,
+                context,
                 status="mna_singular",
                 reason=str(exc),
                 failed_f=f_hz,
@@ -256,7 +263,9 @@ def _evaluate_uncached(
             )
         if sol.status != CircuitSolveStatus.OK:
             return _failure_result(
-                x_key, n_hard, context,
+                x_key,
+                n_hard,
+                context,
                 status="mna_singular",
                 reason=f"MNA failed at {f_hz:.3g} Hz: {sol.status}",
                 failed_f=f_hz,
@@ -264,7 +273,9 @@ def _evaluate_uncached(
             )
         if not _solution_is_finite(sol):
             return _failure_result(
-                x_key, n_hard, context,
+                x_key,
+                n_hard,
+                context,
                 status="nonfinite",
                 reason=f"non-finite solution at {f_hz:.3g} Hz",
                 failed_f=f_hz,
@@ -288,7 +299,9 @@ def _evaluate_uncached(
                 sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
             except np.linalg.LinAlgError as exc:
                 return _failure_result(
-                    x_key, n_hard, context,
+                    x_key,
+                    n_hard,
+                    context,
                     status="mna_singular",
                     reason=str(exc),
                     failed_f=f_hz,
@@ -490,6 +503,7 @@ def _solution_is_finite(sol: CircuitSolution) -> bool:
 def _null_solution(f_hz: float) -> CircuitSolution:
     """A placeholder CircuitSolution for grid points not yet solved."""
     from foster_eom.circuit.mna import SolveDiagnostics
+
     return CircuitSolution(
         f_hz=f_hz,
         status=CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
@@ -525,6 +539,7 @@ def _build_graph(
 
     # None out trivial (non-FINITE_FOSTER) branches
     from foster_eom.foster.schmidt import BranchRealization
+
     c1_arg = c1 if domain.branch1_realization == BranchRealization.FINITE_FOSTER else None
     c2_arg = c2 if domain.branch2_realization == BranchRealization.FINITE_FOSTER else None
 
@@ -580,6 +595,7 @@ def build_evaluation_context(
     # Compile constraint layouts
     extra_records = extra_constraint_records or []
     from foster_eom.domain.constraints import ConstraintSeverity
+
     hard_layout = compile_constraint_layout(
         match_constraints=match_constraints,
         stress_constraints=stress_constraints,
@@ -609,6 +625,7 @@ def build_evaluation_context(
 
     # Lazy coarse flag
     from foster_eom.domain.constraints import FrequencyScope
+
     requires_coarse = any(
         d.frequency_scope in (FrequencyScope.SWEEP, FrequencyScope.OFF_TARGET)
         for d in hard_layout.descriptors + soft_layout.descriptors

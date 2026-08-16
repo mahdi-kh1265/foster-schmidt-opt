@@ -7,6 +7,7 @@ the same domain and share a ``DecisionVariableMapper``.
 Domain identity is a SHA-256 hash of canonical JSON — deterministic across
 processes and platforms, no Python built-in hash().
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -234,7 +235,7 @@ def _check_fixed_fixed_separation(
             if sep < delta_f_min:
                 return (
                     False,
-                    f"FIXED-FIXED pole separation at cells {m}/{m+1}: "
+                    f"FIXED-FIXED pole separation at cells {m}/{m + 1}: "
                     f"{sep:.3g} Hz < min {delta_f_min:.3g} Hz",
                 )
     return True, None
@@ -279,15 +280,29 @@ def build_domain_from_seed(
     n_cells_b1 = topology.branch1_cells
     n_cells_b2 = topology.branch2_cells
 
-    pole_regions_b1 = _reconstruct_pole_regions(
-        n_cells_b1, f_poles_b1, pole_spec_b1, f_targets_hz,
-        pole_spec_b1.delta_f_pole_min_hz,
-    ) if b1_real == BranchRealization.FINITE_FOSTER else ()
+    pole_regions_b1 = (
+        _reconstruct_pole_regions(
+            n_cells_b1,
+            f_poles_b1,
+            pole_spec_b1,
+            f_targets_hz,
+            pole_spec_b1.delta_f_pole_min_hz,
+        )
+        if b1_real == BranchRealization.FINITE_FOSTER
+        else ()
+    )
 
-    pole_regions_b2 = _reconstruct_pole_regions(
-        n_cells_b2, f_poles_b2, pole_spec_b2, f_targets_hz,
-        pole_spec_b2.delta_f_pole_min_hz,
-    ) if b2_real == BranchRealization.FINITE_FOSTER else ()
+    pole_regions_b2 = (
+        _reconstruct_pole_regions(
+            n_cells_b2,
+            f_poles_b2,
+            pole_spec_b2,
+            f_targets_hz,
+            pole_spec_b2.delta_f_pole_min_hz,
+        )
+        if b2_real == BranchRealization.FINITE_FOSTER
+        else ()
+    )
 
     # ---- k-box bounds ----
     k_box_b1: tuple[tuple[float, float], ...] = ()
@@ -369,10 +384,13 @@ def build_domain_from_seed(
 
     if b1_real == BranchRealization.FINITE_FOSTER and seed.branch1_solve is not None:
         _classify_poles(
-            n_cells_b1, pole_regions_b1,
+            n_cells_b1,
+            pole_regions_b1,
             seed.branch1_solve.f_poles_hz,
             seed.branch1_solve.k_residues,
-            pole_spec_b1, fixed_kr_b1, fixed_fp_b1,
+            pole_spec_b1,
+            fixed_kr_b1,
+            fixed_fp_b1,
         )
     else:
         fixed_kr_b1 = []
@@ -380,10 +398,13 @@ def build_domain_from_seed(
 
     if b2_real == BranchRealization.FINITE_FOSTER and seed.branch2_solve is not None:
         _classify_poles(
-            n_cells_b2, pole_regions_b2,
+            n_cells_b2,
+            pole_regions_b2,
             seed.branch2_solve.f_poles_hz,
             seed.branch2_solve.k_residues,
-            pole_spec_b2, fixed_kr_b2, fixed_fp_b2,
+            pole_spec_b2,
+            fixed_kr_b2,
+            fixed_fp_b2,
         )
     else:
         fixed_kr_b2 = []
@@ -488,7 +509,7 @@ def group_seeds_into_domains(
         if d.domain_id in domain_map:
             existing = domain_map[d.domain_id]
             # Merge seed index into existing domain
-            merged_indices = existing.seed_indices + (idx,)
+            merged_indices = (*existing.seed_indices, idx)
             domain_map[d.domain_id] = ContinuousOptimizationDomain(
                 **{
                     **existing.__dict__,

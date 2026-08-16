@@ -173,6 +173,6 @@ class TestComputeObjective:
         soft_layout.descriptors = []
         result = compute_objective(self._make_config(), (sol,), soft_layout, ())
         assert isinstance(result, ObjectiveBreakdown)
-        assert "total" in result.soft_terms or True  # soft_terms may be empty
+        assert True  # soft_terms may be empty
         # Check objective_terms would be built by engine — just verify fields
         assert result.j_total >= 0

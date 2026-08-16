@@ -45,17 +45,17 @@ class ConstraintDescriptor:
 
     name: str
     constraint_type: str  # "gamma"|"r_max"|"r_min"|"x_bound"|"v_min"|"v_max"|
-                          # "i_source"|"cap_v"|"ind_i"|"pole_sep"|
-                          # "comp_L_hi"|"comp_L_lo"|"comp_C_hi"|"comp_C_lo"|"offtarget"
+    # "i_source"|"cap_v"|"ind_i"|"pole_sep"|
+    # "comp_L_hi"|"comp_L_lo"|"comp_C_hi"|"comp_C_lo"|"offtarget"
     frequency_scope: FrequencyScope
     severity: ConstraintSeverity
-    target_index: int | None = None      # index into EvaluationContext.target_indices
-    freq_index: int | None = None        # index into evaluation_frequencies_hz
-    branch: int | None = None            # 1 or 2
+    target_index: int | None = None  # index into EvaluationContext.target_indices
+    freq_index: int | None = None  # index into evaluation_frequencies_hz
+    branch: int | None = None  # 1 or 2
     cell_index: int | None = None
     element_id: str | None = None
     normalization_scale: float = 1.0
-    penalty_weight: float = 1.0          # for SOFT constraints
+    penalty_weight: float = 1.0  # for SOFT constraints
     validation_only: bool = False
 
 
@@ -353,132 +353,148 @@ def compile_constraint_layout(
         f_hz = evaluation_frequencies_hz[fi]
         name_base = f"f{f_hz:.0f}Hz"
 
-        _add(ConstraintDescriptor(
-            name=f"gamma_{name_base}",
-            constraint_type="gamma",
-            frequency_scope=FrequencyScope.ALL_TARGETS,
-            severity=ConstraintSeverity.HARD,
-            target_index=ti,
-            freq_index=fi,
-            normalization_scale=max(match_constraints.gamma_max, 1e-6),
-        ))
-        _add(ConstraintDescriptor(
-            name=f"r_max_{name_base}",
-            constraint_type="r_max",
-            frequency_scope=FrequencyScope.ALL_TARGETS,
-            severity=ConstraintSeverity.HARD,
-            target_index=ti,
-            freq_index=fi,
-            normalization_scale=r_scale,
-        ))
-        _add(ConstraintDescriptor(
-            name=f"r_min_{name_base}",
-            constraint_type="r_min",
-            frequency_scope=FrequencyScope.ALL_TARGETS,
-            severity=ConstraintSeverity.HARD,
-            target_index=ti,
-            freq_index=fi,
-            normalization_scale=r_scale,
-        ))
-        _add(ConstraintDescriptor(
-            name=f"x_bound_{name_base}",
-            constraint_type="x_bound",
-            frequency_scope=FrequencyScope.ALL_TARGETS,
-            severity=ConstraintSeverity.HARD,
-            target_index=ti,
-            freq_index=fi,
-            normalization_scale=x_scale,
-        ))
-        _add(ConstraintDescriptor(
-            name=f"i_source_{name_base}",
-            constraint_type="i_source",
-            frequency_scope=FrequencyScope.ALL_TARGETS,
-            severity=ConstraintSeverity.HARD,
-            target_index=ti,
-            freq_index=fi,
-            normalization_scale=max(stress_constraints.source_current_rms_max_a, 1e-9),
-        ))
+        _add(
+            ConstraintDescriptor(
+                name=f"gamma_{name_base}",
+                constraint_type="gamma",
+                frequency_scope=FrequencyScope.ALL_TARGETS,
+                severity=ConstraintSeverity.HARD,
+                target_index=ti,
+                freq_index=fi,
+                normalization_scale=max(match_constraints.gamma_max, 1e-6),
+            )
+        )
+        _add(
+            ConstraintDescriptor(
+                name=f"r_max_{name_base}",
+                constraint_type="r_max",
+                frequency_scope=FrequencyScope.ALL_TARGETS,
+                severity=ConstraintSeverity.HARD,
+                target_index=ti,
+                freq_index=fi,
+                normalization_scale=r_scale,
+            )
+        )
+        _add(
+            ConstraintDescriptor(
+                name=f"r_min_{name_base}",
+                constraint_type="r_min",
+                frequency_scope=FrequencyScope.ALL_TARGETS,
+                severity=ConstraintSeverity.HARD,
+                target_index=ti,
+                freq_index=fi,
+                normalization_scale=r_scale,
+            )
+        )
+        _add(
+            ConstraintDescriptor(
+                name=f"x_bound_{name_base}",
+                constraint_type="x_bound",
+                frequency_scope=FrequencyScope.ALL_TARGETS,
+                severity=ConstraintSeverity.HARD,
+                target_index=ti,
+                freq_index=fi,
+                normalization_scale=x_scale,
+            )
+        )
+        _add(
+            ConstraintDescriptor(
+                name=f"i_source_{name_base}",
+                constraint_type="i_source",
+                frequency_scope=FrequencyScope.ALL_TARGETS,
+                severity=ConstraintSeverity.HARD,
+                target_index=ti,
+                freq_index=fi,
+                normalization_scale=max(stress_constraints.source_current_rms_max_a, 1e-9),
+            )
+        )
 
     # ---- Off-target EOM envelope ----
     for fi in off_target_indices:
         f_hz = evaluation_frequencies_hz[fi]
-        _add(ConstraintDescriptor(
-            name=f"offtarget_veom_{f_hz:.0f}Hz",
-            constraint_type="offtarget",
-            frequency_scope=FrequencyScope.OFF_TARGET,
-            severity=ConstraintSeverity.HARD,
-            freq_index=fi,
-            normalization_scale=max(stress_constraints.off_target_eom_peak_rms_v, 1e-6),
-        ))
+        _add(
+            ConstraintDescriptor(
+                name=f"offtarget_veom_{f_hz:.0f}Hz",
+                constraint_type="offtarget",
+                frequency_scope=FrequencyScope.OFF_TARGET,
+                severity=ConstraintSeverity.HARD,
+                freq_index=fi,
+                normalization_scale=max(stress_constraints.off_target_eom_peak_rms_v, 1e-6),
+            )
+        )
 
     # ---- Component bounds (per cell, both branches) ----
     for branch in (1, 2):
         n_cells = n_cells_b1 if branch == 1 else n_cells_b2
         for m in range(n_cells):
             for ct in ("comp_L_hi", "comp_L_lo", "comp_C_hi", "comp_C_lo"):
-                _add(ConstraintDescriptor(
-                    name=f"{ct}_b{branch}_m{m}",
-                    constraint_type=ct,
-                    frequency_scope=FrequencyScope.ALL_TARGETS,
-                    severity=ConstraintSeverity.HARD,
-                    branch=branch,
-                    cell_index=m,
-                    normalization_scale=1.0,
-                ))
+                _add(
+                    ConstraintDescriptor(
+                        name=f"{ct}_b{branch}_m{m}",
+                        constraint_type=ct,
+                        frequency_scope=FrequencyScope.ALL_TARGETS,
+                        severity=ConstraintSeverity.HARD,
+                        branch=branch,
+                        cell_index=m,
+                        normalization_scale=1.0,
+                    )
+                )
 
     # ---- Pole separation (per adjacent pair, both branches) ----
     for branch in (1, 2):
         n_cells = n_cells_b1 if branch == 1 else n_cells_b2
         for m in range(n_cells - 1):
-            _add(ConstraintDescriptor(
-                name=f"pole_sep_b{branch}_m{m}m{m+1}",
-                constraint_type="pole_sep",
-                frequency_scope=FrequencyScope.ALL_TARGETS,
-                severity=ConstraintSeverity.HARD,
-                branch=branch,
-                cell_index=m,
-                normalization_scale=1.0,
-            ))
+            _add(
+                ConstraintDescriptor(
+                    name=f"pole_sep_b{branch}_m{m}m{m + 1}",
+                    constraint_type="pole_sep",
+                    frequency_scope=FrequencyScope.ALL_TARGETS,
+                    severity=ConstraintSeverity.HARD,
+                    branch=branch,
+                    cell_index=m,
+                    normalization_scale=1.0,
+                )
+            )
 
     # ---- Extra ConstraintRecord entries ----
     for rec in extra_records:
         if rec.validation_only:
             continue
-        sev = (
-            ConstraintSeverity.HARD
-            if rec.severity.value == "hard"
-            else ConstraintSeverity.SOFT
-        )
+        sev = ConstraintSeverity.HARD if rec.severity.value == "hard" else ConstraintSeverity.SOFT
         if sev != severity_filter:
             continue
         scope = FrequencyScope(rec.frequency_scope.value)
         if scope == FrequencyScope.ALL_TARGETS:
             for ti, fi in enumerate(target_indices):
                 f_hz = evaluation_frequencies_hz[fi]
-                _add(ConstraintDescriptor(
-                    name=f"{rec.name}_f{f_hz:.0f}Hz",
-                    constraint_type="custom",
-                    frequency_scope=scope,
-                    severity=sev,
-                    target_index=ti,
-                    freq_index=fi,
-                    normalization_scale=max(abs(rec.limit), 1e-6),
-                    penalty_weight=rec.penalty_weight,
-                ))
+                _add(
+                    ConstraintDescriptor(
+                        name=f"{rec.name}_f{f_hz:.0f}Hz",
+                        constraint_type="custom",
+                        frequency_scope=scope,
+                        severity=sev,
+                        target_index=ti,
+                        freq_index=fi,
+                        normalization_scale=max(abs(rec.limit), 1e-6),
+                        penalty_weight=rec.penalty_weight,
+                    )
+                )
         elif scope == FrequencyScope.SPECIFIC:
             for sf in rec.specific_frequencies_hz:
                 # Find closest index in evaluation_frequencies_hz
                 eval_arr = np.array(evaluation_frequencies_hz)
                 fi = int(np.argmin(np.abs(eval_arr - sf)))
-                _add(ConstraintDescriptor(
-                    name=f"{rec.name}_f{sf:.0f}Hz",
-                    constraint_type="custom",
-                    frequency_scope=scope,
-                    severity=sev,
-                    freq_index=fi,
-                    normalization_scale=max(abs(rec.limit), 1e-6),
-                    penalty_weight=rec.penalty_weight,
-                ))
+                _add(
+                    ConstraintDescriptor(
+                        name=f"{rec.name}_f{sf:.0f}Hz",
+                        constraint_type="custom",
+                        frequency_scope=scope,
+                        severity=sev,
+                        freq_index=fi,
+                        normalization_scale=max(abs(rec.limit), 1e-6),
+                        penalty_weight=rec.penalty_weight,
+                    )
+                )
 
     # Sort deterministically
     descs.sort(key=_descriptor_sort_key)

@@ -83,8 +83,8 @@ class VariableDescriptor:
 class BranchCoordinates(NamedTuple):
     """Unpacked Foster coordinates for one branch."""
 
-    k0: float | None               # None if branch has no C_0
-    k_inf: float | None            # None if branch has no L_inf
+    k0: float | None  # None if branch has no C_0
+    k_inf: float | None  # None if branch has no L_inf
     k_residues: tuple[float, ...]  # one per cell (even if FIXED)
     f_poles_hz: tuple[float, ...]  # one per cell (even if FIXED)
     l_values_h: tuple[float, ...]  # derived: L_m = k_m / q_m
@@ -159,8 +159,7 @@ class DecisionVariableMapper:
         np.ndarray, shape (n,)
         """
         x = np.empty(self.dimension, dtype=np.float64)
-        idx = 0
-        for d in self.descriptors:
+        for idx, d in enumerate(self.descriptors):
             if d.var_type == "logk0":
                 k = k0_b1 if d.branch == 1 else k0_b2
                 assert k is not None
@@ -177,12 +176,9 @@ class DecisionVariableMapper:
                 assert d.cell_index is not None
                 fp = f_poles_b1 if d.branch == 1 else f_poles_b2
                 x[idx] = self._pack_fp(fp[d.cell_index], d)
-            idx += 1
         return np.clip(x, 0.0, 1.0)
 
-    def unpack(
-        self, x: np.ndarray
-    ) -> tuple[BranchCoordinates, BranchCoordinates]:
+    def unpack(self, x: np.ndarray) -> tuple[BranchCoordinates, BranchCoordinates]:
         """Unpack normalized ``x`` into physical Foster coordinates.
 
         Returns
@@ -228,20 +224,14 @@ class DecisionVariableMapper:
         assert d.f_lo_hz is not None and d.f_hi_hz is not None
         return d.f_lo_hz + x_val * (d.f_hi_hz - d.f_lo_hz)
 
-    def _unpack_branch(
-        self, branch: int, var_vals: dict[str, float]
-    ) -> BranchCoordinates:
+    def _unpack_branch(self, branch: int, var_vals: dict[str, float]) -> BranchCoordinates:
         n_cells = self.branch1_n_cells if branch == 1 else self.branch2_n_cells
         has_c0 = self.branch1_has_c0 if branch == 1 else self.branch2_has_c0
         has_linf = self.branch1_has_linf if branch == 1 else self.branch2_has_linf
         fixed_k0 = self.branch1_fixed_k0 if branch == 1 else self.branch2_fixed_k0
         fixed_kinf = self.branch1_fixed_kinf if branch == 1 else self.branch2_fixed_kinf
-        fixed_kr = (
-            self.branch1_fixed_k_residues if branch == 1 else self.branch2_fixed_k_residues
-        )
-        fixed_fp = (
-            self.branch1_fixed_f_poles_hz if branch == 1 else self.branch2_fixed_f_poles_hz
-        )
+        fixed_kr = self.branch1_fixed_k_residues if branch == 1 else self.branch2_fixed_k_residues
+        fixed_fp = self.branch1_fixed_f_poles_hz if branch == 1 else self.branch2_fixed_f_poles_hz
 
         # k0
         k0: float | None = None
@@ -426,20 +416,19 @@ def build_variable_mapper(
                     )
 
             # f_p,m — variable if movable (f_lo < f_hi)
-            if not is_fixed_fp:
-                if m < len(pole_regions):
-                    f_lo, f_hi = pole_regions[m]
-                    if f_hi > f_lo:
-                        descriptors.append(
-                            VariableDescriptor(
-                                name=f"b{branch}_fp_{m}",
-                                branch=branch,
-                                var_type="fp",
-                                cell_index=m,
-                                f_lo_hz=f_lo,
-                                f_hi_hz=f_hi,
-                            )
+            if not is_fixed_fp and m < len(pole_regions):
+                f_lo, f_hi = pole_regions[m]
+                if f_hi > f_lo:
+                    descriptors.append(
+                        VariableDescriptor(
+                            name=f"b{branch}_fp_{m}",
+                            branch=branch,
+                            var_type="fp",
+                            cell_index=m,
+                            f_lo_hz=f_lo,
+                            f_hi_hz=f_hi,
                         )
+                    )
 
     _add_branch(
         1,

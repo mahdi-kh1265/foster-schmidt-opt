@@ -9,6 +9,7 @@ from ``foster_eom.persistence.yaml_io`` for persistence.
 
 from __future__ import annotations
 
+import contextlib
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +36,7 @@ from foster_eom.optimize.evaluator import (
     build_evaluation_context,
     evaluate,
 )
-from foster_eom.optimize.local_polish import PolishResult, polish_top_k
+from foster_eom.optimize.local_polish import polish_top_k
 from foster_eom.optimize.objective import ObjectiveConfig
 from foster_eom.optimize.preflight import PreflightReport, run_preflight
 
@@ -75,7 +76,7 @@ class RunManifest:
 class OptimizationResult:
     """Complete result of ``run_optimization()``."""
 
-    candidates: tuple[CandidateResult, ...]       # Deb-ranked (best first)
+    candidates: tuple[CandidateResult, ...]  # Deb-ranked (best first)
     best_feasible: CandidateResult | None
     near_feasible_best: CandidateResult | None
     preflight: PreflightReport
@@ -106,16 +107,18 @@ def _build_candidate_result(
     # Per-target summaries
     summaries = []
     for sol in result.target_solutions:
-        summaries.append(TargetSolutionSummary(
-            frequency_hz=sol.f_hz,
-            z_in_real=sol.z_in.real if sol.z_in else 0.0,
-            z_in_imag=sol.z_in.imag if sol.z_in else 0.0,
-            gamma_mag=abs(sol.gamma) if sol.gamma is not None else 0.0,
-            s11_db=sol.s11_db or 0.0,
-            v_eom_mag=abs(sol.v_eom) if sol.v_eom is not None else 0.0,
-            i_source_rms=abs(sol.i_source_droop) if sol.i_source_droop is not None else 0.0,
-            power_balance_ok=sol.power_balance_ok,
-        ))
+        summaries.append(
+            TargetSolutionSummary(
+                frequency_hz=sol.f_hz,
+                z_in_real=sol.z_in.real if sol.z_in else 0.0,
+                z_in_imag=sol.z_in.imag if sol.z_in else 0.0,
+                gamma_mag=abs(sol.gamma) if sol.gamma is not None else 0.0,
+                s11_db=sol.s11_db or 0.0,
+                v_eom_mag=abs(sol.v_eom) if sol.v_eom is not None else 0.0,
+                i_source_rms=abs(sol.i_source_droop) if sol.i_source_droop is not None else 0.0,
+                power_balance_ok=sol.power_balance_ok,
+            )
+        )
 
     # Coarse grid summary
     coarse_v_peak = 0.0
@@ -141,7 +144,6 @@ def _build_candidate_result(
     cr = CandidateResult(
         candidate_id=f"{domain.domain_id[:8]}_{id(result):x}",
         topology_id=domain.domain_id,
-
         # Foster branch info
         orientation=domain.orientation.value,
         domain_id=domain.domain_id,
@@ -153,31 +155,28 @@ def _build_candidate_result(
         branch1_has_linf=topo.branch1_has_linf,
         branch2_has_c0=topo.branch2_has_c0,
         branch2_has_linf=topo.branch2_has_linf,
-
         # Feasibility
         feasible=result.feasible,
         near_feasible=result.near_feasible,
         v_max=result.v_max,
         v_sum=result.v_sum,
-
         # Objectives
         objective_terms=obj_terms,
         base_objective_value=result.base_objective_value,
         soft_penalty_total=result.soft_penalty_total,
-
         # Constraints
-        constraint_margins=dict(zip(
-            [f"hard_{i}" for i in range(len(result.hard_margins))],
-            result.hard_margins,
-        )),
-
+        constraint_margins=dict(
+            zip(
+                [f"hard_{i}" for i in range(len(result.hard_margins))],
+                result.hard_margins,
+                strict=False,
+            )
+        ),
         # Circuit summaries
         target_solution_summaries=summaries,
         coarse_grid_summary=coarse_summary,
-
         # Numerical status
         numerical_status=result.numerical_status,
-
         # Provenance
         seed_source=seed_source,
         de_domain_id=domain.domain_id,
@@ -207,6 +206,7 @@ def _allocate_budgets(
 
     Returns (budget_per_domain, n_dropped, truncated).
     """
+
     # Minimum budget per domain
     def _min_budget(d: ContinuousOptimizationDomain) -> int:
         n_dim = d.dimension
@@ -314,6 +314,7 @@ def run_optimization(
 
     # ---- 1. Domain grouping ----
     from foster_eom.domain.topology import TopologySearchSpec
+
     topo_spec = TopologySearchSpec()  # default spec — caller should provide if needed
     from foster_eom.foster.seed import _domain_to_internal_pole_spec
 
@@ -398,16 +399,21 @@ def run_optimization(
         if not results:
             return (True, 1.0, 1.0, 1e9, d.domain_id)
         best = min(results, key=deb_key)
-        return deb_key(best) + (d.domain_id,)
+        return (*deb_key(best), d.domain_id)
 
     # Topology-family rank
     seen_families: dict[tuple, int] = {}
     family_ranks: dict[str, int] = {}
     for d in feasible_domains:
         topo = d.topology
-        fam = (topo.branch1_cells, topo.branch2_cells,
-               topo.branch1_has_c0, topo.branch1_has_linf,
-               topo.branch2_has_c0, topo.branch2_has_linf)
+        fam = (
+            topo.branch1_cells,
+            topo.branch2_cells,
+            topo.branch1_has_c0,
+            topo.branch1_has_linf,
+            topo.branch2_has_c0,
+            topo.branch2_has_linf,
+        )
         if fam not in seen_families:
             seen_families[fam] = len(seen_families)
         family_ranks[d.domain_id] = seen_families[fam]
@@ -420,7 +426,7 @@ def run_optimization(
     n_available = len(sorted_domains)
 
     # Apply max_optimization_domains cap
-    selected_domains = sorted_domains[:opt_spec.max_optimization_domains]
+    selected_domains = sorted_domains[: opt_spec.max_optimization_domains]
     n_selected_before_budget = len(selected_domains)
 
     # ---- 5. Budget allocation ----
@@ -445,7 +451,7 @@ def run_optimization(
         # Baseline: analytic seed
         analytic_best = min(seed_res, key=deb_key) if seed_res else None
 
-        def _build_checkpoint() -> None:
+        def _build_checkpoint(cache: DomainEvaluatorCache = cache, domain: ContinuousOptimizationDomain = domain) -> None:
             if not checkpoint_path:
                 return
 
@@ -467,26 +473,44 @@ def run_optimization(
                 )
                 current_cands.append(ccr)
 
-            current_cands.sort(key=lambda c: (not c.feasible, c.v_max, c.v_sum, c.objective_terms.get("total", 1e9)))
+            current_cands.sort(
+                key=lambda c: (
+                    not c.feasible,
+                    c.v_max,
+                    c.v_sum,
+                    c.objective_terms.get("total", 1e9),
+                )
+            )
 
             manifest_temp = RunManifest(
-                foster_eom_version="unknown", numpy_version="unknown", scipy_version="unknown",
-                random_seed=opt_spec.random_seed, requested_global_budget=opt_spec.max_global_evaluations,
-                seed_evaluation_budget_used=total_seed_evals, de_budget_available=de_budget_available,
-                allocated_budget_per_domain=budget_map, unique_x_evaluations_per_domain={},
-                total_unique_x_evaluations=0, budget_exhausted=False, n_domains_available=n_available,
-                n_domains_selected_before_budget=n_selected_before_budget, n_domains_optimized=len(optimized_domains),
-                n_domains_dropped_for_budget=n_dropped, domain_search_truncated=truncated
+                foster_eom_version="unknown",
+                numpy_version="unknown",
+                scipy_version="unknown",
+                random_seed=opt_spec.random_seed,
+                requested_global_budget=opt_spec.max_global_evaluations,
+                seed_evaluation_budget_used=total_seed_evals,
+                de_budget_available=de_budget_available,
+                allocated_budget_per_domain=budget_map,
+                unique_x_evaluations_per_domain={},
+                total_unique_x_evaluations=0,
+                budget_exhausted=False,
+                n_domains_available=n_available,
+                n_domains_selected_before_budget=n_selected_before_budget,
+                n_domains_optimized=len(optimized_domains),
+                n_domains_dropped_for_budget=n_dropped,
+                domain_search_truncated=truncated,
             )
             res_temp = OptimizationResult(
-                candidates=tuple(current_cands), best_feasible=None, near_feasible_best=None,
-                preflight=preflight, seed_diagnostics=seed_result, de_diagnostics=tuple(all_de_diags),
-                run_manifest=manifest_temp
+                candidates=tuple(current_cands),
+                best_feasible=None,
+                near_feasible_best=None,
+                preflight=preflight,
+                seed_diagnostics=seed_result,
+                de_diagnostics=tuple(all_de_diags),
+                run_manifest=manifest_temp,
             )
-            try:
+            with contextlib.suppress(Exception):
                 save_results(res_temp, checkpoint_path)
-            except Exception:
-                pass
 
         de_candidates, de_diag = run_de(
             context=ctx,
@@ -510,7 +534,7 @@ def run_optimization(
         polish_results = polish_top_k(basins, ctx, cache, opt_spec)
 
         # Collect polished candidates
-        polished_set = {pr.retained for pr in polish_results}
+        polished_set = list({pr.retained.x: pr.retained for pr in polish_results}.values())
 
         # All unique candidates (polished retained + rest of basins)
         domain_final: list[EvaluationResult] = []
@@ -563,6 +587,7 @@ def run_optimization(
 
     import numpy as np_v
     import scipy as sp_v
+
     try:
         npm = np_v.__version__
     except Exception:
@@ -582,8 +607,7 @@ def run_optimization(
         de_budget_available=de_budget_available,
         allocated_budget_per_domain=budget_map,
         unique_x_evaluations_per_domain={
-            d.domain_id: all_caches[d.domain_id].n_unique_evaluations
-            for d in optimized_domains
+            d.domain_id: all_caches[d.domain_id].n_unique_evaluations for d in optimized_domains
         },
         total_unique_x_evaluations=total_unique_evals,
         budget_exhausted=total_unique_evals >= opt_spec.max_global_evaluations,

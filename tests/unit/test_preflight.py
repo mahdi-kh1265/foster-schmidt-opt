@@ -41,10 +41,12 @@ class TestPreflightSLSQP:
 
     def test_slsqp_fallback_raises(self) -> None:
         with pytest.raises(PreflightError, match="SLSQP"):
-            run_preflight(_spec(
-                local_method=LocalMethod.TRUST_CONSTR,
-                local_fallback_method=LocalMethod.SLSQP,
-            ))
+            run_preflight(
+                _spec(
+                    local_method=LocalMethod.TRUST_CONSTR,
+                    local_fallback_method=LocalMethod.SLSQP,
+                )
+            )
 
     def test_trust_constr_passes(self) -> None:
         report = run_preflight(_spec())
@@ -71,24 +73,29 @@ class TestPreflightWorkers:
     def test_float_workers_raises(self) -> None:
         """A float workers value is rejected at Pydantic model construction."""
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             _spec(workers=2.5)
 
 
 class TestPreflightNearFeasibility:
     def test_near_equals_feasibility_gets_warning(self) -> None:
-        report = run_preflight(_spec(
-            feasibility_tolerance=0.01,
-            near_feasibility_tolerance=0.01,
-        ))
+        report = run_preflight(
+            _spec(
+                feasibility_tolerance=0.01,
+                near_feasibility_tolerance=0.01,
+            )
+        )
         assert report.passed
         assert any(w.code == "NEAR_FEASIBILITY_TOO_SMALL" for w in report.warnings)
 
     def test_near_below_feasibility_gets_warning(self) -> None:
-        report = run_preflight(_spec(
-            feasibility_tolerance=0.05,
-            near_feasibility_tolerance=0.01,
-        ))
+        report = run_preflight(
+            _spec(
+                feasibility_tolerance=0.05,
+                near_feasibility_tolerance=0.01,
+            )
+        )
         assert any(w.code == "NEAR_FEASIBILITY_TOO_SMALL" for w in report.warnings)
 
 

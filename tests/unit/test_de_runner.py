@@ -23,6 +23,7 @@ def test_resolve_workers():
     with pytest.raises(ValueError):
         resolve_workers("foo")
 
+
 def test_build_initial_population():
     """Verify analytic seeds, perturbations, and Sobol fill."""
     seed_vecs = [
@@ -58,6 +59,7 @@ def test_build_initial_population():
     )
     assert np.allclose(pop, pop2)
 
+
 @patch("scipy.optimize.differential_evolution")
 def test_de_runner_calls_scipy_correctly(mock_de):
     """Verify polish=False, NonlinearConstraint, maxiter calculation."""
@@ -67,11 +69,24 @@ def test_de_runner_calls_scipy_correctly(mock_de):
     cache = DomainEvaluatorCache()
 
     seed_res = EvaluationResult(
-        x=(0.1, 0.2), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
+        x=(0.1, 0.2),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
         objective_terms={"total": 10.0, "base": 10.0, "soft_penalty": 0.0},
-        hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0, feasible=True, near_feasible=True,
-        numerical_status="ok", numerical_failure_reason=None, failed_frequency_hz=None, failed_stage=None,
-        all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     budget = 100
@@ -79,7 +94,7 @@ def test_de_runner_calls_scipy_correctly(mock_de):
 
     mock_de.return_value = MagicMock(message="ok")
 
-    results, diag = run_de(
+    _results, _diag = run_de(
         context=mock_context,
         cache=cache,
         analytic_seed_results=[seed_res],
@@ -98,12 +113,14 @@ def test_de_runner_calls_scipy_correctly(mock_de):
 
     # Verify NonlinearConstraint
     from scipy.optimize import NonlinearConstraint
+
     assert isinstance(kwargs["constraints"], NonlinearConstraint)
 
     # Verify maxiter
-    n_pop = max(1, 5 * 2) # 10
+    max(1, 5 * 2)  # 10
     expected_gen = max(0, math.floor(budget / 10) - 1)
     assert kwargs["maxiter"] == expected_gen
+
 
 def test_zero_dimensional_bypass():
     """Verify zero-dimensional domains bypass DE entirely."""
@@ -113,11 +130,24 @@ def test_zero_dimensional_bypass():
     cache = DomainEvaluatorCache()
 
     seed_res = EvaluationResult(
-        x=(), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
+        x=(),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
         objective_terms={"total": 10.0, "base": 10.0, "soft_penalty": 0.0},
-        hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0, feasible=True, near_feasible=True,
-        numerical_status="ok", numerical_failure_reason=None, failed_frequency_hz=None, failed_stage=None,
-        all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     with patch("scipy.optimize.differential_evolution") as mock_de:
@@ -135,6 +165,7 @@ def test_zero_dimensional_bypass():
         assert diag.de_termination == "zero_dimensional_fixed_evaluation"
         assert len(results) == 1
 
+
 def test_de_failure_retains_seed():
     """Verify DE crash/failure retains the analytic seed."""
     mock_context = MagicMock()
@@ -143,11 +174,24 @@ def test_de_failure_retains_seed():
     cache = DomainEvaluatorCache()
 
     seed_res = EvaluationResult(
-        x=(0.1, 0.2), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
+        x=(0.1, 0.2),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
         objective_terms={"total": 10.0, "base": 10.0, "soft_penalty": 0.0},
-        hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0, feasible=True, near_feasible=True,
-        numerical_status="ok", numerical_failure_reason=None, failed_frequency_hz=None, failed_stage=None,
-        all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     with patch("scipy.optimize.differential_evolution", side_effect=Exception("DE crash")):

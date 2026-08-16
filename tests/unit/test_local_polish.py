@@ -37,6 +37,7 @@ def test_resolve_method():
     # So it always returns trust-constr
     assert _resolve_method(spec_ipopt) == "trust-constr"
 
+
 @patch("scipy.optimize.minimize")
 def test_polish_deb_worse_discarded(mock_minimize):
     """Verify Deb-worse polish result is discarded in favor of pre-polish."""
@@ -47,24 +48,54 @@ def test_polish_deb_worse_discarded(mock_minimize):
     spec = OptimizationSpec()
 
     pre = EvaluationResult(
-        x=(0.1, 0.2), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
-        objective_terms={"total": 10.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        x=(0.1, 0.2),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 10.0},
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     basin = Basin(representative=pre, members=[pre])
 
     # Mock minimize to return a worse result
-    mock_minimize.return_value = MagicMock(x=np.array([0.5, 0.5]), success=True, nit=10, message="ok")
+    mock_minimize.return_value = MagicMock(
+        x=np.array([0.5, 0.5]), success=True, nit=10, message="ok"
+    )
 
     # We also need to mock evaluate to return the worse result for the post_x
     with patch("foster_eom.optimize.local_polish.evaluate") as mock_eval:
         post = EvaluationResult(
-            x=(0.5, 0.5), objective_value=20.0, base_objective_value=20.0, soft_penalty_total=0.0,
-            objective_terms={"total": 20.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-            feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-            failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+            x=(0.5, 0.5),
+            objective_value=20.0,
+            base_objective_value=20.0,
+            soft_penalty_total=0.0,
+            objective_terms={"total": 20.0},
+            hard_margins=(1.0,),
+            soft_penalties={},
+            v_max=0.0,
+            v_sum=0.0,
+            feasible=True,
+            near_feasible=True,
+            numerical_status="ok",
+            numerical_failure_reason=None,
+            failed_frequency_hz=None,
+            failed_stage=None,
+            all_solutions=(),
+            target_solutions=(),
+            coarse_evaluated=False,
         )
         mock_eval.return_value = post
 
@@ -74,6 +105,7 @@ def test_polish_deb_worse_discarded(mock_minimize):
         assert pr.post_polish is post
         assert pr.retained is pre  # pre is better (10.0 < 20.0), so retained
         assert mock_minimize.call_count == 1
+
 
 @patch("scipy.optimize.minimize")
 def test_polish_deb_better_retained(mock_minimize):
@@ -85,22 +117,52 @@ def test_polish_deb_better_retained(mock_minimize):
     spec = OptimizationSpec()
 
     pre = EvaluationResult(
-        x=(0.1, 0.2), objective_value=20.0, base_objective_value=20.0, soft_penalty_total=0.0,
-        objective_terms={"total": 20.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        x=(0.1, 0.2),
+        objective_value=20.0,
+        base_objective_value=20.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 20.0},
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     basin = Basin(representative=pre, members=[pre])
 
-    mock_minimize.return_value = MagicMock(x=np.array([0.5, 0.5]), success=True, nit=10, message="ok")
+    mock_minimize.return_value = MagicMock(
+        x=np.array([0.5, 0.5]), success=True, nit=10, message="ok"
+    )
 
     with patch("foster_eom.optimize.local_polish.evaluate") as mock_eval:
         post = EvaluationResult(
-            x=(0.5, 0.5), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
-            objective_terms={"total": 10.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-            feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-            failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+            x=(0.5, 0.5),
+            objective_value=10.0,
+            base_objective_value=10.0,
+            soft_penalty_total=0.0,
+            objective_terms={"total": 10.0},
+            hard_margins=(1.0,),
+            soft_penalties={},
+            v_max=0.0,
+            v_sum=0.0,
+            feasible=True,
+            near_feasible=True,
+            numerical_status="ok",
+            numerical_failure_reason=None,
+            failed_frequency_hz=None,
+            failed_stage=None,
+            all_solutions=(),
+            target_solutions=(),
+            coarse_evaluated=False,
         )
         mock_eval.return_value = post
 
@@ -108,6 +170,7 @@ def test_polish_deb_better_retained(mock_minimize):
 
         assert pr.success is True
         assert pr.retained is post
+
 
 def test_zero_dimensional_bypasses_polish():
     """Verify zero-dimensional domains bypass local polish."""
@@ -118,10 +181,24 @@ def test_zero_dimensional_bypasses_polish():
     spec = OptimizationSpec()
 
     pre = EvaluationResult(
-        x=(), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
-        objective_terms={"total": 10.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        x=(),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 10.0},
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     basin = Basin(representative=pre, members=[pre])
@@ -133,6 +210,7 @@ def test_zero_dimensional_bypasses_polish():
         assert pr.retained is pre
         assert pr.termination == "zero_dimensional"
 
+
 @patch("scipy.optimize.minimize", side_effect=Exception("numerical failure"))
 def test_numerical_solver_failure_captured(mock_minimize):
     """Verify numerical solver failure is captured structurally."""
@@ -143,10 +221,24 @@ def test_numerical_solver_failure_captured(mock_minimize):
     spec = OptimizationSpec()
 
     pre = EvaluationResult(
-        x=(0.1, 0.2), objective_value=10.0, base_objective_value=10.0, soft_penalty_total=0.0,
-        objective_terms={"total": 10.0}, hard_margins=(1.0,), soft_penalties={}, v_max=0.0, v_sum=0.0,
-        feasible=True, near_feasible=True, numerical_status="ok", numerical_failure_reason=None,
-        failed_frequency_hz=None, failed_stage=None, all_solutions=(), target_solutions=(), coarse_evaluated=False,
+        x=(0.1, 0.2),
+        objective_value=10.0,
+        base_objective_value=10.0,
+        soft_penalty_total=0.0,
+        objective_terms={"total": 10.0},
+        hard_margins=(1.0,),
+        soft_penalties={},
+        v_max=0.0,
+        v_sum=0.0,
+        feasible=True,
+        near_feasible=True,
+        numerical_status="ok",
+        numerical_failure_reason=None,
+        failed_frequency_hz=None,
+        failed_stage=None,
+        all_solutions=(),
+        target_solutions=(),
+        coarse_evaluated=False,
     )
 
     basin = Basin(representative=pre, members=[pre])

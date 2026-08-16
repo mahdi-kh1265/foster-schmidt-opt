@@ -102,7 +102,7 @@ class TestPoleRegionAuto:
         f_seed = 5e6
         sep = 200e3
         next_f = 6e6
-        lo, hi = compute_pole_legal_region(
+        _lo, hi = compute_pole_legal_region(
             cell_index=0,
             f_pole_seed_hz=f_seed,
             pole_spec=_auto_spec(sep=sep),
@@ -133,7 +133,7 @@ class TestPoleRegionIntervals:
         """Cell index beyond specified intervals → fallback to point."""
         spec = _interval_spec([(5e6, 10e6)])
         lo, hi = compute_pole_legal_region(
-            cell_index=5,          # beyond available intervals
+            cell_index=5,  # beyond available intervals
             f_pole_seed_hz=7e6,
             pole_spec=spec,
             f_targets_hz=np.array([2e6]),

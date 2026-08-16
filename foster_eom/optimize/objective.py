@@ -83,7 +83,7 @@ def compute_j_voltage(
     Only targets with ``voltage_targets_rms_v[i] is not None`` contribute.
     """
     total = 0.0
-    n = len(target_solutions)
+    len(target_solutions)
     for i, sol in enumerate(target_solutions):
         v_target = voltage_targets_rms_v[i] if i < len(voltage_targets_rms_v) else None
         if v_target is None:
@@ -104,7 +104,7 @@ def compute_j_loss(
     lossy_element_ids: tuple[str, ...],
 ) -> float:
     """Parasitic loss (dB, matched scale): 10 * log10(P_source / P_eom).
-    
+
     Averaged over targets.
     """
     if not lossy_element_ids or not target_solutions:
@@ -127,11 +127,7 @@ def compute_j_loss(
         p_eom = p_source - p_parasitic
 
         # Guard against zero or negative EOM power to prevent log error
-        if p_eom <= 0:
-            # If all power is lost, assign a high dB penalty (e.g., 100 dB)
-            loss_db = 100.0
-        else:
-            loss_db = 10.0 * math.log10(p_source / p_eom)
+        loss_db = 100.0 if p_eom <= 0 else 10.0 * math.log10(p_source / p_eom)
 
         total_loss_db += max(0.0, loss_db)
         n_valid += 1
@@ -206,7 +202,7 @@ def compute_objective(
     for i, desc in enumerate(soft_layout.descriptors):
         g_i = float(soft_g_vector[i]) if i < len(soft_g_vector) else 0.0
         violation = max(0.0, -g_i)
-        penalty = desc.penalty_weight * violation ** 2
+        penalty = desc.penalty_weight * violation**2
         soft_terms[desc.name] = penalty
         j_soft += penalty
 

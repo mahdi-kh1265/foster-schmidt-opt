@@ -52,7 +52,7 @@ def rms_distance(x: tuple[float, ...], y: tuple[float, ...]) -> float:
     if n == 0:
         return 0.0
     diff = np.array(x, dtype=np.float64) - np.array(y, dtype=np.float64)
-    return float(math.sqrt(float(np.mean(diff ** 2))))
+    return float(math.sqrt(float(np.mean(diff**2))))
 
 
 # ---------------------------------------------------------------------------

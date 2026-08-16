@@ -78,61 +78,64 @@ class PreflightValidator:
                 "Use LocalMethod.TRUST_CONSTR or LocalMethod.IPOPT."
             )
         if self._spec.local_fallback_method == LocalMethod.SLSQP:
-            raise PreflightError(
-                "SLSQP is not supported as a fallback in Prompt 05 optimization."
-            )
+            raise PreflightError("SLSQP is not supported as a fallback in Prompt 05 optimization.")
         # Check IPOPT availability when explicitly requested
         if self._spec.local_method == LocalMethod.IPOPT:
             try:
-                import cyipopt  # type: ignore[import]
+                import importlib.util
+
+                if importlib.util.find_spec("cyipopt") is not None:
+                    pass
+                else:
+                    raise ImportError
             except ImportError:
-                self._warnings.append(PreflightWarning(
-                    code="IPOPT_UNAVAILABLE",
-                    message=(
-                        "LocalMethod.IPOPT requested but cyipopt is not installed. "
-                        f"Will fall back to {self._spec.local_fallback_method.value}."
-                    ),
-                ))
+                self._warnings.append(
+                    PreflightWarning(
+                        code="IPOPT_UNAVAILABLE",
+                        message=(
+                            "LocalMethod.IPOPT requested but cyipopt is not installed. "
+                            f"Will fall back to {self._spec.local_fallback_method.value}."
+                        ),
+                    )
+                )
 
     def _check_workers(self) -> None:
         """Validate workers setting."""
         w = self._spec.workers
         if isinstance(w, str):
             if w != "auto":
-                raise PreflightError(
-                    f"Invalid workers value {w!r}. Must be an int >= 1 or \"auto\"."
-                )
+                raise PreflightError(f'Invalid workers value {w!r}. Must be an int >= 1 or "auto".')
         elif isinstance(w, int):
             if w < 1:
-                raise PreflightError(
-                    f"workers must be >= 1, got {w}."
-                )
+                raise PreflightError(f"workers must be >= 1, got {w}.")
         else:
-            raise PreflightError(
-                f"workers must be an int or \"auto\", got {type(w).__name__!r}."
-            )
+            raise PreflightError(f'workers must be an int or "auto", got {type(w).__name__!r}.')
 
     def _check_near_feasibility(self) -> None:
         """near_feasibility_tolerance must be > feasibility_tolerance."""
         if self._spec.near_feasibility_tolerance <= self._spec.feasibility_tolerance:
-            self._warnings.append(PreflightWarning(
-                code="NEAR_FEASIBILITY_TOO_SMALL",
-                message=(
-                    f"near_feasibility_tolerance ({self._spec.near_feasibility_tolerance}) "
-                    f"should be > feasibility_tolerance ({self._spec.feasibility_tolerance})."
-                ),
-            ))
+            self._warnings.append(
+                PreflightWarning(
+                    code="NEAR_FEASIBILITY_TOO_SMALL",
+                    message=(
+                        f"near_feasibility_tolerance ({self._spec.near_feasibility_tolerance}) "
+                        f"should be > feasibility_tolerance ({self._spec.feasibility_tolerance})."
+                    ),
+                )
+            )
 
     def _check_budget_basics(self) -> None:
         """Warn if max_global_evaluations is very small."""
         if self._spec.max_global_evaluations < 500:
-            self._warnings.append(PreflightWarning(
-                code="SMALL_BUDGET",
-                message=(
-                    f"max_global_evaluations={self._spec.max_global_evaluations} is very small. "
-                    "DE may not converge meaningfully."
-                ),
-            ))
+            self._warnings.append(
+                PreflightWarning(
+                    code="SMALL_BUDGET",
+                    message=(
+                        f"max_global_evaluations={self._spec.max_global_evaluations} is very small. "
+                        "DE may not converge meaningfully."
+                    ),
+                )
+            )
 
 
 def run_preflight(opt_spec: OptimizationSpec) -> PreflightReport:

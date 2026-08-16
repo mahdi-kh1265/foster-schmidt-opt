@@ -35,13 +35,13 @@ class PolishResult:
     basin_index: int
     pre_polish: EvaluationResult
     post_polish: EvaluationResult
-    retained: EvaluationResult         # the better of pre/post
+    retained: EvaluationResult  # the better of pre/post
     method_used: str
     success: bool
     n_iterations: int
     n_evaluations: int
     termination: str
-    reason: str | None                 # why we fell back or failed
+    reason: str | None  # why we fell back or failed
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,12 @@ def _resolve_method(opt_spec: OptimizationSpec) -> str:
 
     if primary == LocalMethod.IPOPT:
         try:
-            import cyipopt  # type: ignore[import]
+            import importlib.util
+
+            if importlib.util.find_spec("cyipopt") is not None:
+                return "ipopt"
+            else:
+                raise ImportError
             return "ipopt"
         except ImportError:
             pass  # fall through to fallback
@@ -159,10 +164,7 @@ def polish_basin(
     n_evals = cache.n_unique_evaluations - n_evals_before
 
     # Pre-polish retention: if post is Deb-worse, discard
-    if deb_better(pre, post_result):
-        retained = pre
-    else:
-        retained = post_result
+    retained = pre if deb_better(pre, post_result) else post_result
 
     return PolishResult(
         domain_id=domain_id,

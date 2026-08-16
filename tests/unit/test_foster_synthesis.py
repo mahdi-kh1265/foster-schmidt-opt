@@ -1,8 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 
 from foster_eom.domain.component import ContinuousLimits
-from foster_eom.domain.source import SourceSpec
+from foster_eom.domain.source import SourceMode, SourceSpec
 from foster_eom.domain.topology import LOrientation, PoleMode, PoleSpec, TopologySearchSpec
+from foster_eom.errors import CircuitSolveStatus
 from foster_eom.foster.schmidt import ReactanceTarget, ReactanceTargetState
 from foster_eom.foster.seed import (
     SeedFailureCode,
@@ -127,11 +130,6 @@ def test_topology_stage_rejection_diagnostics():
     assert len(res.seeds) == 0
 
 
-from unittest.mock import MagicMock, patch
-
-from foster_eom.domain.source import SourceMode
-
-
 def test_cartesian_layout_pairs():
     # 7. Exactly 2 pole layouts per branch -> 4 Cartesian pairs
     f_targets = np.array([9e6, 10e6, 11e6])
@@ -180,7 +178,7 @@ def test_cartesian_layout_pairs():
             mock_solve = MagicMock(return_value=(None, None, None, None))
             foster_eom.foster.seed._solve_branch = mock_solve
             try:
-                res = generate_seeds(
+                generate_seeds(
                     r_match_ohm=50.0,
                     source_spec=_default_source(),
                     eom_model=_default_eom(),
@@ -239,9 +237,6 @@ def test_rmatch_is_reference_for_acceptance_not_zref():
     # Prove that the generated match has gamma ~0.333
     # since Z_in is approx 50, not 100.
     assert np.all(np.abs(seed.validation.gamma_at_targets) > 0.25)
-
-
-from foster_eom.errors import CircuitSolveStatus
 
 
 def test_power_balance_failure_rejection():
@@ -346,7 +341,6 @@ def test_gamma_zero_s11():
 
     dummy_built = MagicMock()
     from foster_eom.circuit.measurements import CircuitSolution
-    from foster_eom.errors import CircuitSolveStatus
 
     mock_sol_0 = CircuitSolution(
         status=CircuitSolveStatus.OK,

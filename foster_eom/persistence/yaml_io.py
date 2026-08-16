@@ -696,19 +696,30 @@ def load_results(path: str | Path) -> OptimizationResult:
     preflight = PreflightReport(
         passed=data.get("preflight", {}).get("passed", True),
         errors=tuple(data.get("preflight", {}).get("errors", [])),
-        warnings=tuple(data.get("preflight", {}).get("warnings", []))
+        warnings=tuple(data.get("preflight", {}).get("warnings", [])),
     )
 
     # We provide a basic reconstruction; for a full deep reconstruction we would
     # parse SeedGenerationResult and DEDiagnostics in full.
     from foster_eom.foster.seed import SeedGenerationDiagnostics
+
     diag = SeedGenerationDiagnostics(
-        n_orientation_attempts=0, n_sign_patterns=0, n_topologies=0,
-        n_pole_layouts_branch1=0, n_pole_layouts_branch2=0, n_pole_layout_pairs=0,
-        n_solver_attempts=0, n_mna_attempts=0, rejection_counts={},
-        representative_failures=(), max_failure_records_per_code=1,
-        sign_search_by_orientation={}, sign_search_exhaustive=True,
-        sign_search_truncated=False, sign_beam_width=1, sign_max_patterns=1
+        n_orientation_attempts=0,
+        n_sign_patterns=0,
+        n_topologies=0,
+        n_pole_layouts_branch1=0,
+        n_pole_layouts_branch2=0,
+        n_pole_layout_pairs=0,
+        n_solver_attempts=0,
+        n_mna_attempts=0,
+        rejection_counts={},
+        representative_failures=(),
+        max_failure_records_per_code=1,
+        sign_search_by_orientation={},
+        sign_search_exhaustive=True,
+        sign_search_truncated=False,
+        sign_beam_width=1,
+        sign_max_patterns=1,
     )
     seed_diag = SeedGenerationResult(seeds=(), diagnostics=diag)
 

@@ -94,10 +94,7 @@ def _build_initial_population(
     L2_TOL = 1e-9
 
     def _is_duplicate(v: np.ndarray) -> bool:
-        for p in placed:
-            if len(v) == len(p) and float(np.linalg.norm(v - p)) < L2_TOL:
-                return True
-        return False
+        return any(len(v) == len(p) and float(np.linalg.norm(v - p)) < L2_TOL for p in placed)
 
     # 1) Analytic seeds (deduplicated, best first)
     for xv in analytic_x_vectors:
@@ -130,10 +127,12 @@ def _build_initial_population(
     if remaining > 0:
         # Domain-specific seed derived from domain_id (no Python hash)
         import hashlib
+
         h = int(hashlib.sha256(domain_id.encode()).hexdigest()[:8], 16)
-        sobol_seed = (random_seed ^ h) % (2 ** 31)
+        sobol_seed = (random_seed ^ h) % (2**31)
         try:
             from scipy.stats.qmc import Sobol
+
             sampler = Sobol(d=n_dim, scramble=True, seed=sobol_seed)
             sobol_pts = sampler.random(remaining)
         except Exception:
@@ -193,7 +192,9 @@ def run_de(
             coarse_frequency_point_solves=cache.coarse_frequency_point_solves,
             total_frequency_point_solves=cache.total_frequency_point_solves,
             numerical_failures=cache.numerical_failures,
-            best_objective=analytic_seed_results[0].objective_value if analytic_seed_results else 1e9,
+            best_objective=analytic_seed_results[0].objective_value
+            if analytic_seed_results
+            else 1e9,
             best_feasible=analytic_seed_results[0].feasible if analytic_seed_results else False,
             de_termination="zero_dimensional_fixed_evaluation",
         )
@@ -235,12 +236,16 @@ def run_de(
         nlc = NonlinearConstraint(_g_vec, lb=0.0, ub=np.inf)
 
         last_checkpoint_evals = cache.n_unique_evaluations
+
         def _callback(intermediate_result: object) -> None:
             nonlocal last_checkpoint_evals
-            if checkpoint_interval > 0 and checkpoint_callback:
-                if cache.n_unique_evaluations - last_checkpoint_evals >= checkpoint_interval:
-                    checkpoint_callback()
-                    last_checkpoint_evals = cache.n_unique_evaluations
+            if (
+                checkpoint_interval > 0
+                and checkpoint_callback
+                and cache.n_unique_evaluations - last_checkpoint_evals >= checkpoint_interval
+            ):
+                checkpoint_callback()
+                last_checkpoint_evals = cache.n_unique_evaluations
 
         result = differential_evolution(
             func=_obj,
@@ -249,10 +254,10 @@ def run_de(
             seed=random_seed,
             maxiter=n_gen,
             init=init_pop,
-            polish=False,   # MANDATORY: no hidden internal polish
+            polish=False,  # MANDATORY: no hidden internal polish
             workers=resolved_workers,
             strategy=de_strategy,
-            tol=0.0,        # rely on maxiter budget
+            tol=0.0,  # rely on maxiter budget
             atol=0.0,
             callback=_callback,
         )
@@ -275,7 +280,7 @@ def run_de(
         domain_id=domain.domain_id,
         n_pop=n_pop,
         n_gen_requested=n_gen,
-        n_gen_completed=n_gen,   # SciPy may stop early; we report requested
+        n_gen_completed=n_gen,  # SciPy may stop early; we report requested
         budget_allocated=budget,
         unique_x_evaluations=cache.n_unique_evaluations,
         cache_hits=cache.n_cache_hits,

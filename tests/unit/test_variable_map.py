@@ -62,32 +62,56 @@ class TestVariableMapperDimension:
     def test_dimension_0cells_no_endpoints(self) -> None:
         """Zero cells, no endpoints → dimension 0."""
         m = build_variable_mapper(
-            branch1_n_cells=0, branch1_has_c0=False, branch1_has_linf=False,
-            branch1_pole_regions=(), branch1_k_box_bounds=(),
-            branch1_k0_bounds=None, branch1_kinf_bounds=None,
-            branch1_fixed_k0=None, branch1_fixed_kinf=None,
-            branch1_fixed_k_residues=(), branch1_fixed_f_poles_hz=(),
-            branch2_n_cells=0, branch2_has_c0=False, branch2_has_linf=False,
-            branch2_pole_regions=(), branch2_k_box_bounds=(),
-            branch2_k0_bounds=None, branch2_kinf_bounds=None,
-            branch2_fixed_k0=None, branch2_fixed_kinf=None,
-            branch2_fixed_k_residues=(), branch2_fixed_f_poles_hz=(),
+            branch1_n_cells=0,
+            branch1_has_c0=False,
+            branch1_has_linf=False,
+            branch1_pole_regions=(),
+            branch1_k_box_bounds=(),
+            branch1_k0_bounds=None,
+            branch1_kinf_bounds=None,
+            branch1_fixed_k0=None,
+            branch1_fixed_kinf=None,
+            branch1_fixed_k_residues=(),
+            branch1_fixed_f_poles_hz=(),
+            branch2_n_cells=0,
+            branch2_has_c0=False,
+            branch2_has_linf=False,
+            branch2_pole_regions=(),
+            branch2_k_box_bounds=(),
+            branch2_k0_bounds=None,
+            branch2_kinf_bounds=None,
+            branch2_fixed_k0=None,
+            branch2_fixed_kinf=None,
+            branch2_fixed_k_residues=(),
+            branch2_fixed_f_poles_hz=(),
         )
         assert m.dimension == 0
 
     def test_dimension_with_c0_and_linf(self) -> None:
         """Endpoints add 2 extra variables."""
         m = build_variable_mapper(
-            branch1_n_cells=1, branch1_has_c0=True, branch1_has_linf=True,
-            branch1_pole_regions=((1e6, 10e6),), branch1_k_box_bounds=((1.0, 1e4),),
-            branch1_k0_bounds=(1.0, 1e4), branch1_kinf_bounds=(1e-9, 1e-3),
-            branch1_fixed_k0=None, branch1_fixed_kinf=None,
-            branch1_fixed_k_residues=(None,), branch1_fixed_f_poles_hz=(None,),
-            branch2_n_cells=0, branch2_has_c0=False, branch2_has_linf=False,
-            branch2_pole_regions=(), branch2_k_box_bounds=(),
-            branch2_k0_bounds=None, branch2_kinf_bounds=None,
-            branch2_fixed_k0=None, branch2_fixed_kinf=None,
-            branch2_fixed_k_residues=(), branch2_fixed_f_poles_hz=(),
+            branch1_n_cells=1,
+            branch1_has_c0=True,
+            branch1_has_linf=True,
+            branch1_pole_regions=((1e6, 10e6),),
+            branch1_k_box_bounds=((1.0, 1e4),),
+            branch1_k0_bounds=(1.0, 1e4),
+            branch1_kinf_bounds=(1e-9, 1e-3),
+            branch1_fixed_k0=None,
+            branch1_fixed_kinf=None,
+            branch1_fixed_k_residues=(None,),
+            branch1_fixed_f_poles_hz=(None,),
+            branch2_n_cells=0,
+            branch2_has_c0=False,
+            branch2_has_linf=False,
+            branch2_pole_regions=(),
+            branch2_k_box_bounds=(),
+            branch2_k0_bounds=None,
+            branch2_kinf_bounds=None,
+            branch2_fixed_k0=None,
+            branch2_fixed_kinf=None,
+            branch2_fixed_k_residues=(),
+            branch2_fixed_f_poles_hz=(),
         )
         # b1: logk0 + logkinf + logkm_0 + fp_0 = 4; b2: 0
         assert m.dimension == 4
@@ -95,18 +119,28 @@ class TestVariableMapperDimension:
     def test_fixed_pole_not_in_dimension(self) -> None:
         """A FIXED pole (f_lo == f_hi) adds 0 variables for fp."""
         m = build_variable_mapper(
-            branch1_n_cells=1, branch1_has_c0=False, branch1_has_linf=False,
+            branch1_n_cells=1,
+            branch1_has_c0=False,
+            branch1_has_linf=False,
             branch1_pole_regions=((5e6, 5e6),),  # FIXED: point interval
             branch1_k_box_bounds=((1.0, 1e4),),
-            branch1_k0_bounds=None, branch1_kinf_bounds=None,
-            branch1_fixed_k0=None, branch1_fixed_kinf=None,
+            branch1_k0_bounds=None,
+            branch1_kinf_bounds=None,
+            branch1_fixed_k0=None,
+            branch1_fixed_kinf=None,
             branch1_fixed_k_residues=(None,),
-            branch1_fixed_f_poles_hz=(5e6,),    # FIXED pole value
-            branch2_n_cells=0, branch2_has_c0=False, branch2_has_linf=False,
-            branch2_pole_regions=(), branch2_k_box_bounds=(),
-            branch2_k0_bounds=None, branch2_kinf_bounds=None,
-            branch2_fixed_k0=None, branch2_fixed_kinf=None,
-            branch2_fixed_k_residues=(), branch2_fixed_f_poles_hz=(),
+            branch1_fixed_f_poles_hz=(5e6,),  # FIXED pole value
+            branch2_n_cells=0,
+            branch2_has_c0=False,
+            branch2_has_linf=False,
+            branch2_pole_regions=(),
+            branch2_k_box_bounds=(),
+            branch2_k0_bounds=None,
+            branch2_kinf_bounds=None,
+            branch2_fixed_k0=None,
+            branch2_fixed_kinf=None,
+            branch2_fixed_k_residues=(),
+            branch2_fixed_f_poles_hz=(),
         )
         # b1: logkm_0 only (fp is fixed so fp variable excluded)
         assert m.dimension == 1
@@ -123,10 +157,14 @@ class TestPackUnpackRoundtrip:
         f_p_b2 = 20e6
 
         x = m.pack(
-            k0_b1=None, k_inf_b1=None,
-            k_residues_b1=(k_m_b1,), f_poles_b1=(f_p_b1,),
-            k0_b2=None, k_inf_b2=None,
-            k_residues_b2=(k_m_b2,), f_poles_b2=(f_p_b2,),
+            k0_b1=None,
+            k_inf_b1=None,
+            k_residues_b1=(k_m_b1,),
+            f_poles_b1=(f_p_b1,),
+            k0_b2=None,
+            k_inf_b2=None,
+            k_residues_b2=(k_m_b2,),
+            f_poles_b2=(f_p_b2,),
         )
         assert x.shape == (4,)
         assert np.all((x >= 0.0) & (x <= 1.0))
@@ -144,10 +182,14 @@ class TestPackUnpackRoundtrip:
         f_p = 3e6
 
         x = m.pack(
-            k0_b1=None, k_inf_b1=None,
-            k_residues_b1=(k_m,), f_poles_b1=(f_p,),
-            k0_b2=None, k_inf_b2=None,
-            k_residues_b2=(50.0,), f_poles_b2=(10e6,),
+            k0_b1=None,
+            k_inf_b1=None,
+            k_residues_b1=(k_m,),
+            f_poles_b1=(f_p,),
+            k0_b2=None,
+            k_inf_b2=None,
+            k_residues_b2=(50.0,),
+            f_poles_b2=(10e6,),
         )
         b1, _ = m.unpack(x)
         q_m = (_TWO_PI * f_p) ** 2
@@ -173,20 +215,39 @@ class TestPackUnpackRoundtrip:
     def test_zero_dim_pack_returns_empty(self) -> None:
         """Zero-dim mapper returns empty array."""
         m = build_variable_mapper(
-            branch1_n_cells=0, branch1_has_c0=False, branch1_has_linf=False,
-            branch1_pole_regions=(), branch1_k_box_bounds=(),
-            branch1_k0_bounds=None, branch1_kinf_bounds=None,
-            branch1_fixed_k0=None, branch1_fixed_kinf=None,
-            branch1_fixed_k_residues=(), branch1_fixed_f_poles_hz=(),
-            branch2_n_cells=0, branch2_has_c0=False, branch2_has_linf=False,
-            branch2_pole_regions=(), branch2_k_box_bounds=(),
-            branch2_k0_bounds=None, branch2_kinf_bounds=None,
-            branch2_fixed_k0=None, branch2_fixed_kinf=None,
-            branch2_fixed_k_residues=(), branch2_fixed_f_poles_hz=(),
+            branch1_n_cells=0,
+            branch1_has_c0=False,
+            branch1_has_linf=False,
+            branch1_pole_regions=(),
+            branch1_k_box_bounds=(),
+            branch1_k0_bounds=None,
+            branch1_kinf_bounds=None,
+            branch1_fixed_k0=None,
+            branch1_fixed_kinf=None,
+            branch1_fixed_k_residues=(),
+            branch1_fixed_f_poles_hz=(),
+            branch2_n_cells=0,
+            branch2_has_c0=False,
+            branch2_has_linf=False,
+            branch2_pole_regions=(),
+            branch2_k_box_bounds=(),
+            branch2_k0_bounds=None,
+            branch2_kinf_bounds=None,
+            branch2_fixed_k0=None,
+            branch2_fixed_kinf=None,
+            branch2_fixed_k_residues=(),
+            branch2_fixed_f_poles_hz=(),
         )
-        x = m.pack(k0_b1=None, k_inf_b1=None, k_residues_b1=(),
-                   f_poles_b1=(), k0_b2=None, k_inf_b2=None,
-                   k_residues_b2=(), f_poles_b2=())
+        x = m.pack(
+            k0_b1=None,
+            k_inf_b1=None,
+            k_residues_b1=(),
+            f_poles_b1=(),
+            k0_b2=None,
+            k_inf_b2=None,
+            k_residues_b2=(),
+            f_poles_b2=(),
+        )
         assert x.shape == (0,)
 
     def test_pack_clips_to_unit_box(self) -> None:
@@ -194,9 +255,13 @@ class TestPackUnpackRoundtrip:
         m = _simple_mapper_1cell()
         # k_m below box min → should clip to 0
         x = m.pack(
-            k0_b1=None, k_inf_b1=None,
-            k_residues_b1=(0.0001,), f_poles_b1=(4e6,),
-            k0_b2=None, k_inf_b2=None,
-            k_residues_b2=(1e6,), f_poles_b2=(20e6,),
+            k0_b1=None,
+            k_inf_b1=None,
+            k_residues_b1=(0.0001,),
+            f_poles_b1=(4e6,),
+            k0_b2=None,
+            k_inf_b2=None,
+            k_residues_b2=(1e6,),
+            f_poles_b2=(20e6,),
         )
         assert np.all(x >= 0.0) and np.all(x <= 1.0)
