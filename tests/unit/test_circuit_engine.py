@@ -634,3 +634,464 @@ class TestGraphValidation:
     def test_model_element_missing_model(self):
         with pytest.raises(ValueError, match="model is None"):
             Element("E1", ElementKind.ONE_PORT_MODEL, "a", "b", model=None)
+
+
+# ===========================================================================
+# FREEZE AUDIT TESTS (Prompt-03 hardening)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# A1  High-Q circulating reactive power balance
+# ---------------------------------------------------------------------------
+
+
+class TestHighQPowerBalance:
+    """Power balance with large cancelling reactive powers.
+
+    Near-resonance in a series RLC, the inductor and capacitor carry
+    large but opposite reactive powers. S_port may be small (mostly real
+    for a resistive load), but sum(|S_k|) is much larger. The corrected
+    scaling S_scale = max(|S_port|, sum(|S_k|)) must still pass.
+    """
+
+    def test_series_rlc_near_resonance(self):
+        """Series RLC at exact resonance: large cancelling Q, small P."""
+        L = 100e-6
+        C = 1.0 / ((2.0 * np.pi * 10e6) ** 2 * L)  # resonate at 10 MHz
+        R_loss = 5.0
+
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("n1"))
+        g.add_node(Node("n2"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "n1", value=R_loss))
+        g.add_element(Element("L1", ElementKind.INDUCTOR, "n1", "n2", value=L))
+        g.add_element(Element("C1", ElementKind.CAPACITOR, "n2", "gnd", value=C))
+
+        sol = solve_circuit_single(g, _SOURCE_50, 10e6)
+        assert sol.status == CircuitSolveStatus.OK
+
+        # At resonance: Z_in = R_loss (purely real)
+        assert np.isclose(sol.z_in, R_loss, rtol=1e-10)
+
+        # Inductor and capacitor carry large reactive power
+        q_l = sol.element_measurements["L1"].reactive_power_var
+        q_c = sol.element_measurements["C1"].reactive_power_var
+        assert abs(q_l) > abs(sol.p_source_delivered_w) * 10
+        assert abs(q_c) > abs(sol.p_source_delivered_w) * 10
+        assert np.isclose(q_l, -q_c, rtol=1e-10)  # opposite sign
+
+        # Power balance must hold with corrected scaling
+        _assert_power_balance(sol)
+        _assert_port_current_agreement(sol)
+
+    def test_parallel_lc_near_resonance(self):
+        """Parallel LC tank near resonance: extreme circulating Q."""
+        f_0 = 10e6
+        omega_0 = 2.0 * np.pi * f_0
+        L = 1e-6
+        C = 1.0 / (omega_0**2 * L)
+        R_damp = 10000.0  # high-Q damping
+
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_element(Element("L1", ElementKind.INDUCTOR, "in", "gnd", value=L))
+        g.add_element(Element("C1", ElementKind.CAPACITOR, "in", "gnd", value=C))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "gnd", value=R_damp))
+
+        # Slightly off resonance to avoid exact cancellation
+        sol = solve_circuit_single(g, _SOURCE_50, f_0 * 0.999)
+        assert sol.status == CircuitSolveStatus.OK
+
+        # Elements carry large reactive power
+        s_elem_abs_sum = sum(abs(m.complex_power) for m in sol.element_measurements.values())
+        assert s_elem_abs_sum > abs(sol.s_source_delivered) * 5
+
+        _assert_power_balance(sol)
+        _assert_port_current_agreement(sol)
+
+
+# ---------------------------------------------------------------------------
+# A2  Genuine differential port (neither terminal = ground)
+# ---------------------------------------------------------------------------
+
+
+class TestDifferentialPort:
+    """Input port with NEITHER terminal equal to ground.
+
+    Circuit topology (all nodes are non-ground except gnd):
+
+      gnd
+       |
+      R_bias (connects gnd to port_neg)
+       |
+     port_neg
+       |
+      R_load (connects port_neg to port_pos via R_load)
+       |
+     port_pos
+       |
+      R_shunt (connects port_pos to gnd via R_shunt)
+       |
+      gnd
+
+    Source drives between port_pos and port_neg (both non-ground).
+    """
+
+    def _build_diff_circuit(self) -> tuple[CircuitGraph, SourceSpec]:
+        R_load = 100.0
+        R_bias = 200.0
+        R_shunt = 500.0
+
+        g = CircuitGraph(
+            ground_node_id="gnd",
+            input_port=Port("port_pos", "port_neg"),  # DIFFERENTIAL
+            eom_element_id="Rload",
+        )
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("port_pos"))
+        g.add_node(Node("port_neg"))
+        # R_load between the two port terminals
+        g.add_element(Element("Rload", ElementKind.RESISTOR, "port_pos", "port_neg", value=R_load))
+        # R_bias from port_neg to ground
+        g.add_element(Element("Rbias", ElementKind.RESISTOR, "port_neg", "gnd", value=R_bias))
+        # R_shunt from port_pos to ground
+        g.add_element(Element("Rshunt", ElementKind.RESISTOR, "port_pos", "gnd", value=R_shunt))
+
+        source = SourceSpec(
+            mode=SourceMode.THEVENIN,
+            thevenin_vrms=1.0,
+            z_source_real_ohm=50.0,
+            z_ref_ohm=50.0,
+        )
+        return g, source
+
+    def test_v_port_is_differential(self):
+        """V_port = V_pos - V_neg, not V_pos - 0."""
+        g, source = self._build_diff_circuit()
+        sol = solve_circuit_single(g, source, _F)
+        assert sol.status == CircuitSolveStatus.OK
+
+        v_pos = sol.node_voltages["port_pos"]
+        v_neg = sol.node_voltages["port_neg"]
+        assert np.isclose(sol.v_port, v_pos - v_neg)
+        # port_neg is NOT zero (would be if grounded)
+        assert abs(v_neg) > 1e-6, "port_neg should be non-zero for a differential port"
+        # Therefore V_port != V_pos
+        assert not np.isclose(sol.v_port, v_pos)
+
+    def test_i_port_direction(self):
+        """I_port has the declared direction (into network from port_pos)."""
+        g, source = self._build_diff_circuit()
+        sol = solve_circuit_single(g, source, _F)
+        assert sol.status == CircuitSolveStatus.OK
+        # For a passive network driven by a positive V_th, I_port should be positive real
+        assert sol.i_port.real > 0
+
+    def test_z_in_from_port_quantities(self):
+        """Z_in = V_port / I_port, verified against analytical value."""
+        g, source = self._build_diff_circuit()
+        sol = solve_circuit_single(g, source, _F)
+        assert sol.status == CircuitSolveStatus.OK
+
+        assert np.isclose(sol.z_in, sol.v_port / sol.i_port)
+
+        # Analytical Z_in for this circuit:
+        # Between pos and neg: R_load directly.
+        # pos to gnd: R_shunt; neg to gnd: R_bias.
+        # R_shunt and R_bias form a series path from pos to neg via ground.
+        # Z_in = R_load || (R_shunt + R_bias)
+        R_load, R_bias, R_shunt = 100.0, 200.0, 500.0
+        z_series_path = R_shunt + R_bias
+        z_expected = (R_load * z_series_path) / (R_load + z_series_path)
+        assert np.isclose(sol.z_in, z_expected, rtol=1e-10)
+
+    def test_droop_agreement(self):
+        """Source-droop current agrees with I_port for differential port."""
+        g, source = self._build_diff_circuit()
+        sol = solve_circuit_single(g, source, _F)
+        _assert_port_current_agreement(sol)
+
+    def test_power_balance(self):
+        """Complex power balance holds for differential port."""
+        g, source = self._build_diff_circuit()
+        sol = solve_circuit_single(g, source, _F)
+        _assert_power_balance(sol)
+
+    def test_norton_stamp_uses_both_terminals(self):
+        """Verify the Norton source admittance is stamped between BOTH
+        port terminals (not just port_pos to ground)."""
+        from foster_eom.circuit.mna import assemble_mna
+
+        g, source = self._build_diff_circuit()
+        node_map = g.node_indices()
+
+        # Assemble with source
+        Y_with, I_with, _ = assemble_mna(g, source, _F)
+
+        # Assemble without source (passive only)
+        Y_passive = np.zeros_like(Y_with)
+        from foster_eom.circuit.stamps import stamp_element
+
+        for elem in g.elements.values():
+            stamp_element(Y_passive, elem, node_map, g.ground_node_id, _F)
+
+        # Difference should be the Norton source stamp
+        Y_diff = Y_with - Y_passive
+        y_s = 1.0 / source.z_source
+
+        pos_idx = node_map["port_pos"]
+        neg_idx = node_map["port_neg"]
+
+        # Source admittance stamped at all four positions
+        assert np.isclose(Y_diff[pos_idx, pos_idx], y_s)
+        assert np.isclose(Y_diff[neg_idx, neg_idx], y_s)
+        assert np.isclose(Y_diff[pos_idx, neg_idx], -y_s)
+        assert np.isclose(Y_diff[neg_idx, pos_idx], -y_s)
+
+        # Norton current: I_N at pos, -I_N at neg
+        i_n = source.vth_phasor / source.z_source
+        assert np.isclose(I_with[pos_idx], i_n)
+        assert np.isclose(I_with[neg_idx], -i_n)
+
+
+# ---------------------------------------------------------------------------
+# A3  Port-current/source-droop agreement on multiple load types
+# ---------------------------------------------------------------------------
+
+
+class TestDroopAgreementMultiLoads:
+    """I_port (from passive branches) must agree with
+    I_droop = (V_th - V_port) / Z_source on every load type."""
+
+    def test_rc_load(self):
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("mid"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "mid", value=100.0))
+        g.add_element(Element("C1", ElementKind.CAPACITOR, "mid", "gnd", value=100e-12))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        _assert_port_current_agreement(sol)
+
+    def test_rlc_load(self):
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("n1"))
+        g.add_node(Node("n2"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "n1", value=100.0))
+        g.add_element(Element("L1", ElementKind.INDUCTOR, "n1", "n2", value=1e-6))
+        g.add_element(Element("C1", ElementKind.CAPACITOR, "n2", "gnd", value=100e-12))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        _assert_port_current_agreement(sol)
+
+    def test_mbvd_load(self):
+        eom = create_synthetic_mbvd()
+        g = _build_single_load(Element("EOM", ElementKind.ONE_PORT_MODEL, "in", "gnd", model=eom))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        _assert_port_current_agreement(sol)
+
+    def test_mbvd_with_matching_network(self):
+        """mBVD behind an L-network matching section."""
+        eom = create_synthetic_mbvd()
+        g = CircuitGraph(
+            ground_node_id="gnd",
+            input_port=Port("in", "gnd"),
+            eom_element_id="EOM",
+        )
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("mid"))
+        g.add_element(Element("Ls", ElementKind.INDUCTOR, "in", "mid", value=1e-6))
+        g.add_element(Element("Csh", ElementKind.CAPACITOR, "mid", "gnd", value=100e-12))
+        g.add_element(Element("EOM", ElementKind.ONE_PORT_MODEL, "mid", "gnd", model=eom))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        _assert_port_current_agreement(sol)
+
+
+# ---------------------------------------------------------------------------
+# A4  Passive-element power sign convention
+# ---------------------------------------------------------------------------
+
+
+class TestPowerSignConvention:
+    """Verify power sign conventions for passive elements."""
+
+    def test_resistor_positive_real_power(self):
+        """Resistor always absorbs real power (P > 0)."""
+        g = _build_single_load(Element("R1", ElementKind.RESISTOR, "in", "gnd", value=100.0))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert sol.element_measurements["R1"].real_power_w > 0
+
+    def test_resistor_zero_reactive_power(self):
+        """Pure resistor: Q = 0."""
+        g = _build_single_load(Element("R1", ElementKind.RESISTOR, "in", "gnd", value=100.0))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert abs(sol.element_measurements["R1"].reactive_power_var) < 1e-15
+
+    def test_inductor_positive_reactive_power(self):
+        """Inductor absorbs positive reactive power (Q > 0)."""
+        g = _build_single_load(Element("L1", ElementKind.INDUCTOR, "in", "gnd", value=1e-6))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert sol.element_measurements["L1"].reactive_power_var > 0
+
+    def test_inductor_zero_real_power(self):
+        """Ideal inductor: P = 0."""
+        g = _build_single_load(Element("L1", ElementKind.INDUCTOR, "in", "gnd", value=1e-6))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert abs(sol.element_measurements["L1"].real_power_w) < 1e-15
+
+    def test_capacitor_negative_reactive_power(self):
+        """Capacitor absorbs negative reactive power (Q < 0)."""
+        g = _build_single_load(Element("C1", ElementKind.CAPACITOR, "in", "gnd", value=100e-12))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert sol.element_measurements["C1"].reactive_power_var < 0
+
+    def test_capacitor_zero_real_power(self):
+        """Ideal capacitor: P = 0."""
+        g = _build_single_load(Element("C1", ElementKind.CAPACITOR, "in", "gnd", value=100e-12))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert abs(sol.element_measurements["C1"].real_power_w) < 1e-15
+
+    def test_series_rlc_power_sum(self):
+        """In a series RLC, P_R = P_source and Q_L + Q_C = Q_source."""
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("n1"))
+        g.add_node(Node("n2"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "n1", value=100.0))
+        g.add_element(Element("L1", ElementKind.INDUCTOR, "n1", "n2", value=1e-6))
+        g.add_element(Element("C1", ElementKind.CAPACITOR, "n2", "gnd", value=100e-12))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+
+        p_r = sol.element_measurements["R1"].real_power_w
+        q_l = sol.element_measurements["L1"].reactive_power_var
+        q_c = sol.element_measurements["C1"].reactive_power_var
+
+        assert np.isclose(p_r, sol.p_source_delivered_w, rtol=1e-10)
+        assert np.isclose(q_l + q_c, float(np.imag(sol.s_source_delivered)), rtol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# A5  Failed solve safety: no misleading valid-looking values
+# ---------------------------------------------------------------------------
+
+
+class TestFailedSolveSafety:
+    """When solve fails, the solution must NOT expose values that
+    look like valid results."""
+
+    def test_singular_no_zin(self):
+        """Singular circuit: Z_in, V_EOM, S11, gamma must be None."""
+        g = CircuitGraph(
+            ground_node_id="gnd",
+            input_port=Port("in", "gnd"),
+            eom_element_id="R1",
+        )
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("floating"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "gnd", value=50.0))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert sol.status != CircuitSolveStatus.OK
+        assert sol.z_in is None
+        assert sol.gamma is None
+        assert sol.s11_db is None
+        assert sol.v_eom is None
+        assert sol.i_eom is None
+        assert sol.v_port is None
+        assert sol.i_port is None
+        assert sol.node_voltages is None
+        assert sol.element_measurements is None
+        assert sol.s_source_delivered is None
+        assert sol.power_balance_ok is False
+
+    def test_floating_no_hidden_shunt(self):
+        """A floating node must produce SINGULAR, not a repaired result."""
+        g = CircuitGraph(ground_node_id="gnd", input_port=Port("in", "gnd"))
+        g.add_node(Node("gnd", is_ground=True))
+        g.add_node(Node("in"))
+        g.add_node(Node("orphan"))
+        g.add_element(Element("R1", ElementKind.RESISTOR, "in", "gnd", value=50.0))
+        sol = solve_circuit_single(g, _SOURCE_50, _F)
+        assert sol.status == CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED
+        # Should not contain any measurement data
+        assert sol.z_in is None
+        assert sol.element_measurements is None
+
+
+# ---------------------------------------------------------------------------
+# A6  Node-solution invariance (extended)
+# ---------------------------------------------------------------------------
+
+
+class TestNodeInvarianceExtended:
+    """Extended invariance tests beyond the basic rename/reorder tests."""
+
+    def test_invariance_with_rlc(self):
+        """Series RLC with different node IDs: identical Z_in, V_port, gamma."""
+
+        def _build(prefix: str) -> CircuitGraph:
+            g = CircuitGraph(
+                ground_node_id=f"{prefix}_gnd",
+                input_port=Port(f"{prefix}_in", f"{prefix}_gnd"),
+            )
+            g.add_node(Node(f"{prefix}_gnd", is_ground=True))
+            g.add_node(Node(f"{prefix}_in"))
+            g.add_node(Node(f"{prefix}_n1"))
+            g.add_node(Node(f"{prefix}_n2"))
+            g.add_element(
+                Element("R1", ElementKind.RESISTOR, f"{prefix}_in", f"{prefix}_n1", value=100.0)
+            )
+            g.add_element(
+                Element("L1", ElementKind.INDUCTOR, f"{prefix}_n1", f"{prefix}_n2", value=1e-6)
+            )
+            g.add_element(
+                Element("C1", ElementKind.CAPACITOR, f"{prefix}_n2", f"{prefix}_gnd", value=100e-12)
+            )
+            return g
+
+        sol_a = solve_circuit_single(_build("alpha"), _SOURCE_50, _F)
+        sol_b = solve_circuit_single(_build("beta"), _SOURCE_50, _F)
+        assert np.isclose(sol_a.z_in, sol_b.z_in)
+        assert np.isclose(sol_a.v_port, sol_b.v_port)
+        assert np.isclose(sol_a.gamma, sol_b.gamma)
+        assert np.isclose(sol_a.s11_db, sol_b.s11_db)
+        assert np.isclose(sol_a.p_source_delivered_w, sol_b.p_source_delivered_w)
+
+    def test_invariance_to_random_insertion_order(self):
+        """Same circuit built with randomized node/element insertion order."""
+        import random
+
+        rng = random.Random(42)
+
+        def _build(shuffle: bool) -> CircuitGraph:
+            g = CircuitGraph(ground_node_id="g", input_port=Port("i", "g"))
+            nodes = [
+                Node("g", is_ground=True),
+                Node("i"),
+                Node("m"),
+            ]
+            elems = [
+                Element("R1", ElementKind.RESISTOR, "i", "m", value=75.0),
+                Element("C1", ElementKind.CAPACITOR, "m", "g", value=47e-12),
+            ]
+            if shuffle:
+                rng.shuffle(nodes)
+                rng.shuffle(elems)
+            for n in nodes:
+                g.add_node(n)
+            for e in elems:
+                g.add_element(e)
+            return g
+
+        sol_ordered = solve_circuit_single(_build(False), _SOURCE_50, _F)
+        sol_shuffled = solve_circuit_single(_build(True), _SOURCE_50, _F)
+        assert np.isclose(sol_ordered.z_in, sol_shuffled.z_in)
+        assert np.isclose(sol_ordered.v_port, sol_shuffled.v_port)
+        assert np.isclose(sol_ordered.gamma, sol_shuffled.gamma)

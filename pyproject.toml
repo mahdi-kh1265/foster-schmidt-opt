@@ -62,3 +62,10 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+# scipy stubs are incomplete/unstable — suppress for modules that import scipy
+[[tool.mypy.overrides]]
+module = [
+    "scipy.*",
+]
+ignore_missing_imports = true

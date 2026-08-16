@@ -238,7 +238,12 @@ def compute_measurements(
     p_delivered = float(np.real(s_delivered))
     p_total = float(np.real(s_total))
     residual = s_delivered - s_total
-    balance_ok = abs(residual) < atol + rtol * abs(s_delivered)
+
+    # Scale uses max(|S_port|, sum(|S_k|)) so high-Q resonant networks
+    # with large cancelling reactive powers don't produce false passes.
+    s_elem_abs_sum = sum(abs(em.complex_power) for em in element_measurements.values())
+    s_scale = max(abs(s_delivered), s_elem_abs_sum)
+    balance_ok = abs(residual) < atol + rtol * s_scale
 
     return CircuitSolution(
         f_hz=f_hz,
