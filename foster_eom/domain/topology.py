@@ -114,13 +114,13 @@ class TopologySearchSpec(BaseModel, frozen=True):
     orientations : list[LOrientation]
         Allowed L-network orientations.
     branch1_cells_min : int
-        Minimum Foster cells in branch 1.
+        Minimum Foster cells in branch 1 (shunt).
     branch1_cells_max : int
-        Maximum Foster cells in branch 1.
+        Maximum Foster cells in branch 1 (shunt).
     branch2_cells_min : int
-        Minimum Foster cells in branch 2.
+        Minimum Foster cells in branch 2 (series).
     branch2_cells_max : int
-        Maximum Foster cells in branch 2.
+        Maximum Foster cells in branch 2 (series).
     endpoint_series_cap_branch1 : bool
         Allow endpoint series capacitor in branch 1.
     endpoint_series_ind_branch1 : bool
@@ -133,8 +133,10 @@ class TopologySearchSpec(BaseModel, frozen=True):
         Hard cap on total reactive elements.
     complexity_penalty : float
         Soft penalty weight per component for optimization.
-    pole_spec : PoleSpec
-        Pole placement specification.
+    pole_spec_branch1 : PoleSpec
+        Pole placement specification for branch 1 (shunt).
+    pole_spec_branch2 : PoleSpec
+        Pole placement specification for branch 2 (series).
     """
 
     orientations: list[LOrientation] = Field(
@@ -150,7 +152,8 @@ class TopologySearchSpec(BaseModel, frozen=True):
     endpoint_series_ind_branch2: bool = True
     max_total_reactive_components: int = Field(default=14, ge=1)
     complexity_penalty: float = Field(default=0.02, ge=0.0)
-    pole_spec: PoleSpec = Field(default_factory=PoleSpec)
+    pole_spec_branch1: PoleSpec = Field(default_factory=PoleSpec)
+    pole_spec_branch2: PoleSpec = Field(default_factory=PoleSpec)
 
     @model_validator(mode="after")
     def _validate_cells(self) -> TopologySearchSpec:

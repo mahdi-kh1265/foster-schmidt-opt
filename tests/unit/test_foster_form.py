@@ -269,3 +269,29 @@ class TestDisabledEndpointNoneVsZero:
         x_zero = foster_reactance_hz(f_eval, 0.0, 0.0, k_m, f_poles)
 
         np.testing.assert_allclose(x_none, x_zero, atol=1e-14)
+
+
+def test_prefix_recovers_pole_from_trivial_start():
+    # [0, 0] -> [0, 0, 10] whole-prefix recomputation actually recovers the first required interval.
+    # When [0, 0] is evaluated, it is deemed 'all-zero' and requires 0 poles.
+    # When [0, 0, 10] is evaluated, it is no longer all-zero, and the 0 -> 0 transition
+    # (where x_{i+1} <= x_i) now correctly identifies the required pole between target 0 and 1.
+    f_targets = np.array([1e6, 2e6])
+    x_targets_2 = np.array([0.0, 0.0])
+    intervals_2 = find_required_pole_intervals(f_targets, x_targets_2)
+    assert len(intervals_2) == 0
+
+    f_targets_3 = np.array([1e6, 2e6, 3e6])
+    x_targets_3 = np.array([0.0, 0.0, 10.0])
+    intervals_3 = find_required_pole_intervals(f_targets_3, x_targets_3)
+    assert len(intervals_3) == 1
+    assert intervals_3[0].f_lo_hz == 1e6
+    assert intervals_3[0].f_hi_hz == 2e6
+
+
+def test_trivial_prefix_remains_trivial():
+    # [0, 0, 0] remains trivial/no-pole.
+    f_targets = np.array([1e6, 2e6, 3e6])
+    x_targets = np.array([0.0, 0.0, 0.0])
+    intervals = find_required_pole_intervals(f_targets, x_targets)
+    assert len(intervals) == 0

@@ -133,7 +133,7 @@ class TestExampleYAML:
         """Load the supplied example YAML and verify key fields."""
         spec = load_project(EXAMPLE_YAML)
 
-        assert spec.schema_version == "0.1"
+        assert spec.schema_version == "0.2"
         assert spec.project.name == "Synthetic 9-10-11 MHz regression example"
         assert spec.source.mode == SourceMode.AVAILABLE_POWER
         assert spec.source.available_power_dbm == pytest.approx(20.0)

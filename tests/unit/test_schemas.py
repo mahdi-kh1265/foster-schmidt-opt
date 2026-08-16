@@ -383,13 +383,13 @@ class TestProjectSpec:
 
     def test_valid_project(self) -> None:
         p = self._make_project()
-        assert p.schema_version == "0.1"
+        assert p.schema_version == "0.2"
         assert len(p.frequencies.targets) == 3
 
     def test_frozen(self) -> None:
         p = self._make_project()
         with pytest.raises((ValidationError, AttributeError)):
-            p.schema_version = "0.2"  # type: ignore[misc]
+            p.schema_version = "0.3"  # type: ignore[misc]
 
     def test_candidate_result_skeleton(self) -> None:
         r = CandidateResult(candidate_id="c001")

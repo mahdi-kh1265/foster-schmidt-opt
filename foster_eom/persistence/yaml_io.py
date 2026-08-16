@@ -45,8 +45,8 @@ from foster_eom.domain.topology import (
 )
 from foster_eom.errors import ProjectValidationError, SchemaVersionError
 
-CURRENT_SCHEMA_VERSION = "0.1"
-SUPPORTED_SCHEMA_VERSIONS = {"0.1"}
+CURRENT_SCHEMA_VERSION = "0.2"
+SUPPORTED_SCHEMA_VERSIONS = {"0.1", "0.2"}
 
 
 def save_project(spec: ProjectSpec, path: str | Path) -> None:
@@ -221,18 +221,21 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
     }
     d["topology"] = topo
 
-    # Poles
-    ps = spec.topology.pole_spec
-    poles: dict[str, Any] = {"mode": ps.mode.value}
-    if ps.min_separation_hz > 0:
-        poles["min_pole_separation_hz"] = ps.min_separation_hz
-    if ps.min_distance_from_target_hz > 0:
-        poles["min_target_distance_hz"] = ps.min_distance_from_target_hz
-    if ps.allowed_band_hz is not None:
-        poles["allowed_band_hz"] = list(ps.allowed_band_hz)
-    if ps.fixed_poles_hz:
-        poles["fixed_poles_hz"] = ps.fixed_poles_hz
-    d["poles"] = poles
+    # Poles — branch-specific (v0.2)
+    for branch_key, ps in [
+        ("poles_branch1", spec.topology.pole_spec_branch1),
+        ("poles_branch2", spec.topology.pole_spec_branch2),
+    ]:
+        poles: dict[str, Any] = {"mode": ps.mode.value}
+        if ps.min_separation_hz > 0:
+            poles["min_pole_separation_hz"] = ps.min_separation_hz
+        if ps.min_distance_from_target_hz > 0:
+            poles["min_target_distance_hz"] = ps.min_distance_from_target_hz
+        if ps.allowed_band_hz is not None:
+            poles["allowed_band_hz"] = list(ps.allowed_band_hz)
+        if ps.fixed_poles_hz:
+            poles["fixed_poles_hz"] = ps.fixed_poles_hz
+        d[branch_key] = poles
 
     # Components
     cl = spec.components.continuous_limits
@@ -441,16 +444,19 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
     b1 = topo_data.get("branch1_cells", {})
     b2 = topo_data.get("branch2_cells", {})
 
-    # Poles
-    pole_data = data.get("poles", {})
-    pole_band = pole_data.get("allowed_band_hz")
-    pole_spec = PoleSpec(
-        mode=PoleMode(pole_data.get("mode", "auto")),
-        fixed_poles_hz=pole_data.get("fixed_poles_hz", []),
-        min_separation_hz=pole_data.get("min_pole_separation_hz", 100e3),
-        min_distance_from_target_hz=pole_data.get("min_target_distance_hz", 50e3),
-        allowed_band_hz=tuple(pole_band) if pole_band else None,
-    )
+    # Poles — branch-specific (v0.2 format after migration)
+    def _parse_pole_spec(pole_data: dict[str, Any]) -> PoleSpec:
+        pole_band = pole_data.get("allowed_band_hz")
+        return PoleSpec(
+            mode=PoleMode(pole_data.get("mode", "auto")),
+            fixed_poles_hz=pole_data.get("fixed_poles_hz", []),
+            min_separation_hz=pole_data.get("min_pole_separation_hz", 100e3),
+            min_distance_from_target_hz=pole_data.get("min_target_distance_hz", 50e3),
+            allowed_band_hz=tuple(pole_band) if pole_band else None,
+        )
+
+    pole_spec_b1 = _parse_pole_spec(data.get("poles_branch1", {}))
+    pole_spec_b2 = _parse_pole_spec(data.get("poles_branch2", {}))
 
     topology = TopologySearchSpec(
         orientations=[
@@ -466,7 +472,8 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
         endpoint_series_ind_branch2=topo_data.get("endpoint_series_ind_allowed", True),
         max_total_reactive_components=topo_data.get("max_total_reactive_components", 14),
         complexity_penalty=topo_data.get("complexity_penalty", 0.02),
-        pole_spec=pole_spec,
+        pole_spec_branch1=pole_spec_b1,
+        pole_spec_branch2=pole_spec_b2,
     )
 
     # Components
@@ -591,7 +598,29 @@ def _migrate(data: dict[str, Any], version: str) -> dict[str, Any]:
     Returns
     -------
     dict
-        Migrated data (currently identity for v0.1).
+        Migrated data.
+
+    Raises
+    ------
+    SchemaVersionError
+        If a v0.2 file contains the legacy ``poles`` key (conflicting).
     """
-    # No migrations needed yet
+    if version == "0.1":
+        # Migrate v0.1 → v0.2: legacy single poles → branch-specific
+        if "poles" in data:
+            legacy_poles = data.pop("poles")
+            data["poles_branch1"] = dict(legacy_poles)
+            data["poles_branch2"] = dict(legacy_poles)
+        # If no poles block exists, branch-specific defaults apply
+        data["schema_version"] = "0.2"
+
+    if (version == "0.2" or data.get("schema_version") == "0.2") and "poles" in data:
+        # Reject any legacy 'poles' key in v0.2 — never silently ignore
+        raise SchemaVersionError(
+            "Conflicting pole specifications: v0.2 file contains legacy "
+            "'poles' key. Remove the legacy 'poles' key or downgrade to "
+            "schema_version 0.1. Branch-specific fields are "
+            "'poles_branch1' and 'poles_branch2'."
+        )
+
     return data

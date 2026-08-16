@@ -73,7 +73,7 @@ class ProjectSpec(BaseModel, frozen=True):
         ISO-format last-modified timestamp.
     """
 
-    schema_version: str = "0.1"
+    schema_version: str = "0.2"
     project: ProjectMeta = Field(default_factory=ProjectMeta)
     source: SourceSpec
     eom: EOMModelSpec
