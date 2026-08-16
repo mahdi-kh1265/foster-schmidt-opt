@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from foster_eom.circuit.measurements import CircuitSolution
-    from foster_eom.optimize.constraints import ConstraintDescriptor, ConstraintLayout
+    from foster_eom.optimize.constraints import ConstraintLayout
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ class ObjectiveConfig:
 
 
 def compute_j_gamma(
-    target_solutions: tuple["CircuitSolution", ...],
+    target_solutions: tuple[CircuitSolution, ...],
     z_ref_ohm: float,
 ) -> float:
     """Mean squared reflection coefficient over target frequencies.
@@ -72,7 +72,7 @@ def compute_j_gamma(
 
 
 def compute_j_voltage(
-    target_solutions: tuple["CircuitSolution", ...],
+    target_solutions: tuple[CircuitSolution, ...],
     voltage_targets_rms_v: tuple[float | None, ...],
     voltage_target_weights: tuple[float, ...],
 ) -> float:
@@ -99,18 +99,18 @@ def compute_j_voltage(
 
 
 def compute_j_loss(
-    target_solutions: tuple["CircuitSolution", ...],
+    target_solutions: tuple[CircuitSolution, ...],
     eom_element_id: str | None,
     lossy_element_ids: tuple[str, ...],
 ) -> float:
-    """Parasitic loss fraction: P_parasitic / P_source (averaged over targets).
-
-    Uses ``element_measurements`` from ``CircuitSolution``.
+    """Parasitic loss (dB, matched scale): 10 * log10(P_source / P_eom).
+    
+    Averaged over targets.
     """
     if not lossy_element_ids or not target_solutions:
         return 0.0
 
-    total_ratio = 0.0
+    total_loss_db = 0.0
     n_valid = 0
     for sol in target_solutions:
         if sol.element_measurements is None or sol.p_source_delivered_w is None:
@@ -123,10 +123,20 @@ def compute_j_loss(
             for eid in lossy_element_ids
             if eid in sol.element_measurements and eid != eom_element_id
         )
-        total_ratio += max(0.0, p_parasitic) / max(p_source, 1e-15)
+        # Power to EOM is what's left
+        p_eom = p_source - p_parasitic
+
+        # Guard against zero or negative EOM power to prevent log error
+        if p_eom <= 0:
+            # If all power is lost, assign a high dB penalty (e.g., 100 dB)
+            loss_db = 100.0
+        else:
+            loss_db = 10.0 * math.log10(p_source / p_eom)
+
+        total_loss_db += max(0.0, loss_db)
         n_valid += 1
 
-    return total_ratio / n_valid if n_valid > 0 else 0.0
+    return total_loss_db / n_valid if n_valid > 0 else 0.0
 
 
 def compute_j_complexity(n_reactive: int, alpha: float) -> float:
@@ -158,9 +168,9 @@ class ObjectiveBreakdown:
 
 def compute_objective(
     config: ObjectiveConfig,
-    target_solutions: tuple["CircuitSolution", ...],
-    soft_layout: "ConstraintLayout",
-    soft_g_vector: "tuple[float, ...]",
+    target_solutions: tuple[CircuitSolution, ...],
+    soft_layout: ConstraintLayout,
+    soft_g_vector: tuple[float, ...],
 ) -> ObjectiveBreakdown:
     """Compute the full objective breakdown.
 

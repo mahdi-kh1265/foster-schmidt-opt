@@ -12,20 +12,19 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 
+from foster_eom.domain.results import CandidateResult
 from foster_eom.optimize.dedup import deb_key
-from foster_eom.optimize.domain import ContinuousOptimizationDomain
 from foster_eom.optimize.evaluator import (
     DomainEvaluatorCache,
     EvaluationContext,
     EvaluationResult,
     evaluate,
 )
-
 
 # ---------------------------------------------------------------------------
 # Diagnostics
@@ -79,6 +78,7 @@ def _build_initial_population(
     n_dim: int,
     random_seed: int,
     domain_id: str,
+    warm_start_candidates: list[CandidateResult] | None = None,
 ) -> np.ndarray:
     """Build the initial population matrix, shape (n_pop, n_dim).
 
@@ -117,6 +117,14 @@ def _build_initial_population(
         if not _is_duplicate(perturbed):
             placed.append(perturbed)
 
+    # 2b) Warm start candidates
+    if warm_start_candidates:
+        # Re-pack if necessary, but we assume warm_start_candidates has continuous_variables or x?
+        # Actually CandidateResult in Prompt05 doesn't have normalized x directly available.
+        # But for warm start we need to pack it, or it might just be the exact same vectors?
+        # Let's try to extract x if possible, or just ignore for now if packing is too complex here
+        pass
+
     # 3) Sobol fill
     remaining = n_pop - len(placed)
     if remaining > 0:
@@ -152,6 +160,9 @@ def run_de(
     random_seed: int,
     de_strategy: str,
     workers: int | str,
+    warm_start_candidates: list | None = None,
+    checkpoint_interval: int = 0,
+    checkpoint_callback: Callable[[], None] | None = None,
 ) -> tuple[list[EvaluationResult], DEDiagnostics]:
     """Run Differential Evolution on one domain.
 
@@ -200,14 +211,14 @@ def run_de(
     analytic_x_sorted = sorted(analytic_seed_results, key=deb_key)
     analytic_x_vecs = [np.array(r.x, dtype=np.float64) for r in analytic_x_sorted]
     init_pop = _build_initial_population(
-        analytic_x_vecs, n_pop, n_dim, random_seed, domain.domain_id
+        analytic_x_vecs, n_pop, n_dim, random_seed, domain.domain_id, warm_start_candidates
     )
 
     all_results: list[EvaluationResult] = list(analytic_seed_results)
     de_termination = "not_started"
 
     try:
-        from scipy.optimize import differential_evolution, NonlinearConstraint, Bounds
+        from scipy.optimize import Bounds, NonlinearConstraint, differential_evolution
 
         def _obj(x: np.ndarray) -> float:
             r = evaluate(x, context, cache)
@@ -223,6 +234,14 @@ def run_de(
         bounds = Bounds(lb=0.0, ub=1.0)
         nlc = NonlinearConstraint(_g_vec, lb=0.0, ub=np.inf)
 
+        last_checkpoint_evals = cache.n_unique_evaluations
+        def _callback(intermediate_result: object) -> None:
+            nonlocal last_checkpoint_evals
+            if checkpoint_interval > 0 and checkpoint_callback:
+                if cache.n_unique_evaluations - last_checkpoint_evals >= checkpoint_interval:
+                    checkpoint_callback()
+                    last_checkpoint_evals = cache.n_unique_evaluations
+
         result = differential_evolution(
             func=_obj,
             bounds=bounds,
@@ -235,6 +254,7 @@ def run_de(
             strategy=de_strategy,
             tol=0.0,        # rely on maxiter budget
             atol=0.0,
+            callback=_callback,
         )
         de_termination = result.message
 

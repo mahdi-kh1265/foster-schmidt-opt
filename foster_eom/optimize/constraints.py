@@ -13,7 +13,6 @@ All margins are normalized (dimensionless).
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -82,7 +81,7 @@ class ConstraintLayout:
 
     def evaluate(
         self,
-        solutions: tuple["CircuitSolution", ...],
+        solutions: tuple[CircuitSolution, ...],
         target_indices: tuple[int, ...],
         off_target_indices: tuple[int, ...],
         branch1_pole_regions: tuple[tuple[float, float], ...],
@@ -151,7 +150,7 @@ class ConstraintLayout:
 
 def _eval_one(
     desc: ConstraintDescriptor,
-    solutions: tuple["CircuitSolution", ...],
+    solutions: tuple[CircuitSolution, ...],
     target_indices: tuple[int, ...],
     off_target_indices: tuple[int, ...],
     b1_pole_regions: tuple[tuple[float, float], ...],
@@ -323,7 +322,7 @@ def _descriptor_sort_key(d: ConstraintDescriptor) -> tuple:
 def compile_constraint_layout(
     match_constraints: MatchConstraints,
     stress_constraints: StressConstraints,
-    extra_records: list["ConstraintRecord"],
+    extra_records: list[ConstraintRecord],
     target_frequencies_hz: tuple[float, ...],
     evaluation_frequencies_hz: tuple[float, ...],
     target_indices: tuple[int, ...],

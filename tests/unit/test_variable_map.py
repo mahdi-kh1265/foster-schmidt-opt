@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 import pytest
 
 from foster_eom.optimize.variable_map import (
     DecisionVariableMapper,
-    VariableDescriptor,
     build_variable_mapper,
-    BranchCoordinates,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

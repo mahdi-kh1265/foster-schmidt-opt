@@ -7,7 +7,7 @@ in ``PreflightReport``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from foster_eom.domain.objectives import LocalMethod, OptimizationSpec
 

@@ -6,18 +6,14 @@ Full integration tests are in test_engine.py.
 
 from __future__ import annotations
 
-import math
-import numpy as np
 import pytest
 
 from foster_eom.domain.component import ContinuousLimits
-from foster_eom.foster.poles import PoleMode, PoleSpec
 from foster_eom.optimize.domain import (
-    _compute_k_box_bounds,
     _check_fixed_fixed_separation,
+    _compute_k_box_bounds,
     _domain_hash,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests for _compute_k_box_bounds
@@ -105,7 +101,7 @@ class TestFixedFixedSeparation:
 
 
 class TestDomainHash:
-    def _make_topo(self, cells1: int = 1, cells2: int = 1) -> "TopologyCandidate":
+    def _make_topo(self, cells1: int = 1, cells2: int = 1) -> TopologyCandidate:
         from foster_eom.domain.topology import LOrientation
         from foster_eom.foster.topology_enum import TopologyCandidate
         return TopologyCandidate(

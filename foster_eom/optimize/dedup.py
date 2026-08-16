@@ -15,7 +15,6 @@ import numpy as np
 
 from foster_eom.optimize.evaluator import EvaluationResult
 
-
 # ---------------------------------------------------------------------------
 # Deb comparator
 # ---------------------------------------------------------------------------

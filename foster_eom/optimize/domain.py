@@ -12,20 +12,19 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from foster_eom.domain.component import ContinuousLimits
-from foster_eom.foster.foster_form import compute_coefficient_bounds
 from foster_eom.foster.poles import (
     PoleMode,
     PoleSpec,
     compute_pole_legal_region,
 )
-from foster_eom.foster.sign_search import SignPattern
 from foster_eom.foster.schmidt import BranchRealization
+from foster_eom.foster.sign_search import SignPattern
 from foster_eom.foster.topology_enum import TopologyCandidate
 from foster_eom.optimize.variable_map import (
     DecisionVariableMapper,
@@ -78,7 +77,7 @@ class ContinuousOptimizationDomain:
     """
 
     domain_id: str
-    orientation: "LOrientation"
+    orientation: LOrientation
     topology: TopologyCandidate
     branch1_realization: BranchRealization
     branch2_realization: BranchRealization
@@ -247,7 +246,7 @@ def _check_fixed_fixed_separation(
 
 
 def build_domain_from_seed(
-    seed: "SeedCandidate",
+    seed: SeedCandidate,
     seed_index: int,
     pole_spec_b1: PoleSpec,
     pole_spec_b2: PoleSpec,
@@ -291,8 +290,8 @@ def build_domain_from_seed(
     ) if b2_real == BranchRealization.FINITE_FOSTER else ()
 
     # ---- k-box bounds ----
-    k_box_b1 = ()
-    k_box_b2 = ()
+    k_box_b1: tuple[tuple[float, float], ...] = ()
+    k_box_b2: tuple[tuple[float, float], ...] = ()
     infeasible_reason: str | None = None
     struct_feasible = True
 
@@ -468,7 +467,7 @@ def build_domain_from_seed(
 
 
 def group_seeds_into_domains(
-    seeds: tuple["SeedCandidate", ...],
+    seeds: tuple[SeedCandidate, ...],
     pole_spec_b1: PoleSpec,
     pole_spec_b2: PoleSpec,
     f_targets_hz: np.ndarray,

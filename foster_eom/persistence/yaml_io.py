@@ -36,6 +36,7 @@ from foster_eom.domain.objectives import (
     TimeDomainPhaseMode,
 )
 from foster_eom.domain.project import ProjectMeta, ProjectSpec
+from foster_eom.domain.results import CandidateResult
 from foster_eom.domain.source import SourceMode, SourceSpec
 from foster_eom.domain.topology import (
     LOrientation,
@@ -44,6 +45,10 @@ from foster_eom.domain.topology import (
     TopologySearchSpec,
 )
 from foster_eom.errors import ProjectValidationError, SchemaVersionError
+from foster_eom.foster.seed import SeedGenerationResult
+from foster_eom.optimize.de_runner import DEDiagnostics
+from foster_eom.optimize.engine import OptimizationResult, RunManifest
+from foster_eom.optimize.preflight import PreflightReport
 
 CURRENT_SCHEMA_VERSION = "0.2"
 SUPPORTED_SCHEMA_VERSIONS = {"0.1", "0.2"}
@@ -624,3 +629,108 @@ def _migrate(data: dict[str, Any], version: str) -> dict[str, Any]:
         )
 
     return data
+
+
+# ---------------------------------------------------------------------------
+# Results persistence
+# ---------------------------------------------------------------------------
+
+
+def save_results(result: OptimizationResult, path: str | Path) -> None:
+    """Save an OptimizationResult to a YAML file.
+
+    Parameters
+    ----------
+    result : OptimizationResult
+        Optimization results to save.
+    path : str | Path
+        Output file path.
+    """
+    import dataclasses
+
+    def _to_dict(obj: Any) -> Any:
+        if isinstance(obj, CandidateResult):
+            # CandidateResult is a pydantic BaseModel
+            return obj.dict() if hasattr(obj, "dict") else obj.model_dump()
+        elif dataclasses.is_dataclass(obj):
+            return {f.name: _to_dict(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+        elif isinstance(obj, (list, tuple)):
+            return [_to_dict(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {k: _to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, (int, float, str, bool, type(None))):
+            return obj
+        elif hasattr(obj, "value"):  # Enums
+            return obj.value
+        else:
+            return str(obj)
+
+    data = _to_dict(result)
+
+    p = Path(path)
+    with p.open("w", encoding="utf-8") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def load_results(path: str | Path) -> OptimizationResult:
+    """Load an OptimizationResult from a YAML file.
+
+    Parameters
+    ----------
+    path : str | Path
+        Input file path.
+
+    Returns
+    -------
+    OptimizationResult
+        Deserialized results.
+    """
+    p = Path(path)
+    with p.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    candidates = []
+    for c_data in data.get("candidates", []):
+        candidates.append(CandidateResult(**c_data))
+
+    preflight = PreflightReport(
+        passed=data.get("preflight", {}).get("passed", True),
+        errors=tuple(data.get("preflight", {}).get("errors", [])),
+        warnings=tuple(data.get("preflight", {}).get("warnings", []))
+    )
+
+    # We provide a basic reconstruction; for a full deep reconstruction we would
+    # parse SeedGenerationResult and DEDiagnostics in full.
+    from foster_eom.foster.seed import SeedGenerationDiagnostics
+    diag = SeedGenerationDiagnostics(
+        n_orientation_attempts=0, n_sign_patterns=0, n_topologies=0,
+        n_pole_layouts_branch1=0, n_pole_layouts_branch2=0, n_pole_layout_pairs=0,
+        n_solver_attempts=0, n_mna_attempts=0, rejection_counts={},
+        representative_failures=(), max_failure_records_per_code=1,
+        sign_search_by_orientation={}, sign_search_exhaustive=True,
+        sign_search_truncated=False, sign_beam_width=1, sign_max_patterns=1
+    )
+    seed_diag = SeedGenerationResult(seeds=(), diagnostics=diag)
+
+    de_diag = tuple(DEDiagnostics(**d) for d in data.get("de_diagnostics", []))
+
+    rm_data = data.get("run_manifest", {})
+    manifest = RunManifest(**rm_data)
+
+    best_feasible = None
+    if data.get("best_feasible"):
+        best_feasible = CandidateResult(**data["best_feasible"])
+
+    near_feasible_best = None
+    if data.get("near_feasible_best"):
+        near_feasible_best = CandidateResult(**data["near_feasible_best"])
+
+    return OptimizationResult(
+        candidates=tuple(candidates),
+        best_feasible=best_feasible,
+        near_feasible_best=near_feasible_best,
+        preflight=preflight,
+        seed_diagnostics=seed_diag,
+        de_diagnostics=de_diag,
+        run_manifest=manifest,
+    )

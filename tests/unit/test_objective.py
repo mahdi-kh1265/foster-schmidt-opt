@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from foster_eom.optimize.objective import (
     ObjectiveBreakdown,
@@ -15,7 +16,6 @@ from foster_eom.optimize.objective import (
     compute_j_voltage,
     compute_objective,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,6 +59,35 @@ class TestJGamma:
 
     def test_empty_returns_zero(self) -> None:
         assert compute_j_gamma((), z_ref_ohm=50.0) == 0.0
+
+
+class TestJLoss:
+    def test_compute_j_loss_db_scale(self) -> None:
+        """Verify j_loss is computed as 10*log10(P_source / P_eom)."""
+        sol = _mock_solution(0.0)
+        sol.p_source_delivered_w = 10.0
+
+        elem_mock = MagicMock()
+        elem_mock.real_power_w = 2.0
+        sol.element_measurements = {"L1": elem_mock}
+
+        loss_db = compute_j_loss((sol,), eom_element_id="EOM", lossy_element_ids=("L1",))
+
+        # 10 * log10(10 / 8)
+        expected = 10.0 * math.log10(10.0 / 8.0)
+        assert math.isclose(loss_db, expected, rel_tol=1e-5)
+
+    def test_compute_j_loss_zero_power(self) -> None:
+        """Verify j_loss handles 0 or negative EOM power safely."""
+        sol = _mock_solution(0.0)
+        sol.p_source_delivered_w = 10.0
+
+        elem_mock = MagicMock()
+        elem_mock.real_power_w = 12.0
+        sol.element_measurements = {"L1": elem_mock}
+
+        loss_db = compute_j_loss((sol,), eom_element_id="EOM", lossy_element_ids=("L1",))
+        assert loss_db == 100.0
 
 
 class TestJVoltage:

@@ -9,9 +9,7 @@ result, the pre-polish is retained.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -23,7 +21,6 @@ from foster_eom.optimize.evaluator import (
     EvaluationResult,
     evaluate,
 )
-
 
 # ---------------------------------------------------------------------------
 # Polish result
@@ -90,7 +87,7 @@ def polish_basin(
     If the polished result is Deb-worse than the pre-polish result, the
     pre-polish result is retained.
     """
-    from scipy.optimize import minimize, NonlinearConstraint, Bounds
+    from scipy.optimize import Bounds, NonlinearConstraint, minimize
 
     pre = basin.representative
     domain_id = context.domain.domain_id

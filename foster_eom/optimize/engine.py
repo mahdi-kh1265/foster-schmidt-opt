@@ -10,8 +10,8 @@ from ``foster_eom.persistence.yaml_io`` for persistence.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -23,7 +23,7 @@ from foster_eom.domain.source import SourceSpec
 from foster_eom.foster.seed import SeedGenerationResult
 from foster_eom.models.base import OnePortModel
 from foster_eom.optimize.de_runner import DEDiagnostics, run_de
-from foster_eom.optimize.dedup import deduplicate_basins, deb_key
+from foster_eom.optimize.dedup import deb_key, deduplicate_basins
 from foster_eom.optimize.domain import (
     ContinuousOptimizationDomain,
     group_seeds_into_domains,
@@ -38,8 +38,6 @@ from foster_eom.optimize.evaluator import (
 from foster_eom.optimize.local_polish import PolishResult, polish_top_k
 from foster_eom.optimize.objective import ObjectiveConfig
 from foster_eom.optimize.preflight import PreflightReport, run_preflight
-from foster_eom.optimize.de_runner import resolve_workers
-
 
 # ---------------------------------------------------------------------------
 # Run manifest
@@ -81,7 +79,7 @@ class OptimizationResult:
     best_feasible: CandidateResult | None
     near_feasible_best: CandidateResult | None
     preflight: PreflightReport
-    seed_diagnostics: "SeedGenerationResult"
+    seed_diagnostics: SeedGenerationResult
     de_diagnostics: tuple[DEDiagnostics, ...]
     run_manifest: RunManifest
 
@@ -268,6 +266,8 @@ def run_optimization(
     base_grid_points: int = 200,
     voltage_targets_rms_v: tuple[float | None, ...] = (),
     extra_constraint_records: list | None = None,
+    checkpoint_path: str | Path | None = None,
+    warm_start_candidates: list[CandidateResult] | None = None,
 ) -> OptimizationResult:
     """Run the full Prompt-05 layered optimization pipeline.
 
@@ -445,6 +445,49 @@ def run_optimization(
         # Baseline: analytic seed
         analytic_best = min(seed_res, key=deb_key) if seed_res else None
 
+        def _build_checkpoint() -> None:
+            if not checkpoint_path:
+                return
+
+            from foster_eom.persistence.yaml_io import save_results
+
+            # Temporary collect candidates
+            current_cands = []
+            for r in all_candidate_results:
+                current_cands.append(r)
+
+            # Plus best of current domain so far
+            best_curr = min(cache._cache.values(), key=deb_key) if cache._cache else None
+            if best_curr:
+                ccr = _build_candidate_result(
+                    result=best_curr,
+                    domain=domain,
+                    termination="checkpoint",
+                    de_evaluations_used=cache.n_unique_evaluations,
+                )
+                current_cands.append(ccr)
+
+            current_cands.sort(key=lambda c: (not c.feasible, c.v_max, c.v_sum, c.objective_terms.get("total", 1e9)))
+
+            manifest_temp = RunManifest(
+                foster_eom_version="unknown", numpy_version="unknown", scipy_version="unknown",
+                random_seed=opt_spec.random_seed, requested_global_budget=opt_spec.max_global_evaluations,
+                seed_evaluation_budget_used=total_seed_evals, de_budget_available=de_budget_available,
+                allocated_budget_per_domain=budget_map, unique_x_evaluations_per_domain={},
+                total_unique_x_evaluations=0, budget_exhausted=False, n_domains_available=n_available,
+                n_domains_selected_before_budget=n_selected_before_budget, n_domains_optimized=len(optimized_domains),
+                n_domains_dropped_for_budget=n_dropped, domain_search_truncated=truncated
+            )
+            res_temp = OptimizationResult(
+                candidates=tuple(current_cands), best_feasible=None, near_feasible_best=None,
+                preflight=preflight, seed_diagnostics=seed_result, de_diagnostics=tuple(all_de_diags),
+                run_manifest=manifest_temp
+            )
+            try:
+                save_results(res_temp, checkpoint_path)
+            except Exception:
+                pass
+
         de_candidates, de_diag = run_de(
             context=ctx,
             cache=cache,
@@ -454,6 +497,9 @@ def run_optimization(
             random_seed=opt_spec.random_seed,
             de_strategy=opt_spec.de_strategy,
             workers=opt_spec.workers,
+            warm_start_candidates=warm_start_candidates,
+            checkpoint_interval=opt_spec.checkpoint_every_evaluations,
+            checkpoint_callback=_build_checkpoint,
         )
         all_de_diags.append(de_diag)
 
@@ -485,17 +531,17 @@ def run_optimization(
         polish_map = {pr.pre_polish.x: pr for pr in polish_results}
 
         for res in domain_final:
-            pr = polish_map.get(res.x)
+            polish_res = polish_map.get(res.x)
             cr = _build_candidate_result(
                 result=res,
                 domain=domain,
                 termination=de_diag.de_termination,
                 de_evaluations_used=cache.n_unique_evaluations,
-                pre_polish_objective=pr.pre_polish.objective_value if pr else None,
-                polish_method=pr.method_used if pr else "",
-                polish_success=pr.success if pr else False,
-                polish_iterations=pr.n_iterations if pr else 0,
-                polish_evals=pr.n_evaluations if pr else 0,
+                pre_polish_objective=polish_res.pre_polish.objective_value if polish_res else None,
+                polish_method=polish_res.method_used if polish_res else "",
+                polish_success=polish_res.success if polish_res else False,
+                polish_iterations=polish_res.n_iterations if polish_res else 0,
+                polish_evals=polish_res.n_evaluations if polish_res else 0,
             )
             all_candidate_results.append(cr)
 

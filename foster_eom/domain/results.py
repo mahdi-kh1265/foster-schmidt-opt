@@ -15,7 +15,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Typed sub-models for circuit solution summaries
 # ---------------------------------------------------------------------------

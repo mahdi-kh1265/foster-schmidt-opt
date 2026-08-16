@@ -8,10 +8,8 @@ from foster_eom.domain.objectives import LocalMethod, OptimizationSpec
 from foster_eom.optimize.preflight import (
     PreflightError,
     PreflightReport,
-    PreflightValidator,
     run_preflight,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

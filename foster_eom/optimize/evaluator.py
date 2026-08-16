@@ -13,7 +13,7 @@ Numerical failure semantics:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -25,15 +25,13 @@ from foster_eom.domain.component import ContinuousLimits
 from foster_eom.domain.constraints import MatchConstraints, StressConstraints
 from foster_eom.domain.source import SourceSpec
 from foster_eom.errors import CircuitSolveStatus
-from foster_eom.foster.foster_form import coefficients_to_components
-from foster_eom.foster.network_builder import BuiltFosterCircuit, build_foster_circuit
+from foster_eom.foster.network_builder import build_foster_circuit
 from foster_eom.foster.sign_search import SignPattern
 from foster_eom.models.base import OnePortModel
 from foster_eom.optimize.constraints import ConstraintLayout, compile_constraint_layout
 from foster_eom.optimize.domain import ContinuousOptimizationDomain
 from foster_eom.optimize.objective import ObjectiveConfig, compute_objective
 from foster_eom.optimize.variable_map import BranchCoordinates
-
 
 # ---------------------------------------------------------------------------
 # Evaluation result
@@ -504,10 +502,10 @@ def _build_graph(
     b2: BranchCoordinates,
     domain: ContinuousOptimizationDomain,
     eom_model: OnePortModel,
-    sign_pattern: "SignPattern",
+    sign_pattern: SignPattern,
 ) -> CircuitGraph:
     """Reconstruct the FosterCircuit graph from unpacked branch coordinates."""
-    from foster_eom.foster.foster_form import FosterComponents, FosterCell
+    from foster_eom.foster.foster_form import FosterCell, FosterComponents
 
     def _make_components(b: BranchCoordinates, n_cells: int) -> FosterComponents:
         cells = tuple(

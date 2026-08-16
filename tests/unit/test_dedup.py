@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock
 
 from foster_eom.optimize.dedup import (
-    Basin,
     deb_better,
-    deb_key,
     deduplicate_basins,
     rms_distance,
 )
 from foster_eom.optimize.evaluator import EvaluationResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers

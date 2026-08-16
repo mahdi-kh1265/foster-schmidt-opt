@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
-import pytest
 
 from foster_eom.foster.poles import PoleMode, PoleSpec, compute_pole_legal_region
-
 
 # ---------------------------------------------------------------------------
 # Helpers
