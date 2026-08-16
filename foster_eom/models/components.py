@@ -97,9 +97,8 @@ class LumpedLossyInductor(OnePortModel):
             raise ValueError("DCR must be non-negative.")
         if c_par_f < 0.0:
             raise ValueError("Parallel capacitance must be non-negative.")
-        if validity_hz is not None:
-            if validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]:
-                raise ValueError("Validity bounds must be positive and f_min < f_max.")
+        if validity_hz is not None and (validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]):
+            raise ValueError("Validity bounds must be positive and f_min < f_max.")
 
         self.l_h = l_h
         self.r_dcr_ohm = r_dcr_ohm
@@ -149,9 +148,8 @@ class LumpedLossyCapacitor(OnePortModel):
             raise ValueError("ESR must be non-negative.")
         if l_esl_h < 0.0:
             raise ValueError("ESL must be non-negative.")
-        if validity_hz is not None:
-            if validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]:
-                raise ValueError("Validity bounds must be positive and f_min < f_max.")
+        if validity_hz is not None and (validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]):
+            raise ValueError("Validity bounds must be positive and f_min < f_max.")
 
         self.c_f = c_f
         self.r_esr_ohm = r_esr_ohm

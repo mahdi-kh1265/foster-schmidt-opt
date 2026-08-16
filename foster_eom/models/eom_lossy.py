@@ -53,9 +53,8 @@ class LossyCapacitorEOM(EOMModel):
             raise ValueError("Capacitance c0_f must be strictly positive.")
         if rs_ohm < 0.0 or ls_h < 0.0 or g0_s < 0.0:
             raise ValueError("Parasitic components (Rs, Ls, G0) must be non-negative.")
-        if validity_hz is not None:
-            if validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]:
-                raise ValueError("Validity bounds must be positive and f_min < f_max.")
+        if validity_hz is not None and (validity_hz[0] <= 0.0 or validity_hz[0] >= validity_hz[1]):
+            raise ValueError("Validity bounds must be positive and f_min < f_max.")
 
         self.c0_f = c0_f
         self.rs_ohm = rs_ohm

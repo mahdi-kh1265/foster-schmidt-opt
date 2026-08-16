@@ -22,7 +22,6 @@ from foster_eom.models import (
 )
 from foster_eom.models.base import EOMModel, OnePortModel
 
-
 # ---------------------------------------------------------------------------
 # §1  Ideal capacitor EOM
 # ---------------------------------------------------------------------------
@@ -189,7 +188,7 @@ class TestTabularEOM:
     def test_exact_data_points(self):
         f, z = self._tabular_data()
         model = TabularEOM(f, z)
-        for fi, zi in zip(f, z):
+        for fi, zi in zip(f, z, strict=True):
             assert np.isclose(model.z(fi), zi)
 
     def test_linear_interpolation_midpoint(self):
