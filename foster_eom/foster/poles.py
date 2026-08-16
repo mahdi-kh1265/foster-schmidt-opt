@@ -212,29 +212,52 @@ def check_required_interval_feasibility(
             reason=f"{len(uncovered)} required interval(s) could not be matched",
         )
 
-    # Post-matching: verify actual legal pole placement in each intersection
-    # respecting ordering, target exclusion, separation
-    candidate_poles = _place_poles_from_matching(
-        matched_pairs, required_intervals, slots, f_t, pole_spec
-    )
-    if candidate_poles is None:
+    # Post-matching: a perfect matching exists.
+    # Exhaustively search perfect matchings for one that admits legal placement.
+    valid_matching: list[tuple[int, int]] | None = None
+
+    def _search_placements(rk: int, current_match_r: list[int], used_a: set[int]) -> bool:
+        nonlocal valid_matching
+        if rk == k:
+            candidate_pairs = [(i, current_match_r[i]) for i in range(k)]
+            if (
+                _place_poles_from_matching(
+                    candidate_pairs, required_intervals, slots, f_t, pole_spec
+                )
+                is not None
+            ):
+                valid_matching = candidate_pairs
+                return True
+            return False
+
+        for aj in adjacency[rk]:
+            if aj not in used_a:
+                current_match_r[rk] = aj
+                used_a.add(aj)
+                if _search_placements(rk + 1, current_match_r, used_a):
+                    return True
+                used_a.remove(aj)
+                current_match_r[rk] = -1
+        return False
+
+    if _search_placements(0, [-1] * k, set()):
         return RequiredIntervalFeasibility(
-            feasible=False,
+            feasible=True,
             n_required=k,
             n_available=m,
-            matching=tuple(matched_pairs),
+            matching=tuple(valid_matching),  # type: ignore[arg-type]
             uncovered_intervals=(),
-            reason="Matching exists but legal pole placement infeasible "
-            "(ordering/separation/exclusion constraints)",
+            reason=None,
         )
 
     return RequiredIntervalFeasibility(
-        feasible=True,
+        feasible=False,
         n_required=k,
         n_available=m,
-        matching=tuple(matched_pairs),
+        matching=tuple(matched_pairs),  # Return the first one found as diagnostic
         uncovered_intervals=(),
-        reason=None,
+        reason="Matching(s) exist but legal pole placement infeasible "
+        "(ordering/separation/exclusion constraints)",
     )
 
 

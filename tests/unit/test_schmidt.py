@@ -406,7 +406,10 @@ class TestBranchAllOpenOmitted:
             ReactanceTarget(10e6, None, ReactanceTargetState.OPEN_CIRCUIT),
             ReactanceTarget(11e6, None, ReactanceTargetState.OPEN_CIRCUIT),
         )
-        assert classify_branch_realization(targets, _RM) == BranchRealization.OPEN_OMITTED
+        assert (
+            classify_branch_realization(targets, _RM, is_series=True)
+            == BranchRealization.OPEN_OMITTED
+        )
 
 
 class TestBranchAllZeroWire:
@@ -417,7 +420,10 @@ class TestBranchAllZeroWire:
             ReactanceTarget(10e6, 0.0, ReactanceTargetState.FINITE),
             ReactanceTarget(11e6, 0.001, ReactanceTargetState.FINITE),
         )
-        assert classify_branch_realization(targets, _RM) == BranchRealization.ZERO_IMPEDANCE
+        assert (
+            classify_branch_realization(targets, _RM, is_series=True)
+            == BranchRealization.ZERO_IMPEDANCE
+        )
 
 
 class TestBranchMixedOpenFiniteInfeasible:
@@ -429,7 +435,7 @@ class TestBranchMixedOpenFiniteInfeasible:
             ReactanceTarget(11e6, None, ReactanceTargetState.OPEN_CIRCUIT),
         )
         with pytest.raises(ValueError, match="Mixed OPEN"):
-            classify_branch_realization(targets, _RM)
+            classify_branch_realization(targets, _RM, is_series=True)
 
 
 class TestZeroImpedanceShuntRejected:
@@ -482,7 +488,10 @@ class TestZeroTargetToleranceJustInside:
             ReactanceTarget(10e6, val, ReactanceTargetState.FINITE),
             ReactanceTarget(11e6, -val, ReactanceTargetState.FINITE),
         )
-        assert classify_branch_realization(targets, _RM, bt) == BranchRealization.ZERO_IMPEDANCE
+        assert (
+            classify_branch_realization(targets, _RM, is_series=True, branch_tol=bt)
+            == BranchRealization.ZERO_IMPEDANCE
+        )
 
 
 class TestZeroTargetToleranceJustOutside:
@@ -496,4 +505,46 @@ class TestZeroTargetToleranceJustOutside:
             ReactanceTarget(10e6, val, ReactanceTargetState.FINITE),
             ReactanceTarget(11e6, 0.0, ReactanceTargetState.FINITE),
         )
-        assert classify_branch_realization(targets, _RM, bt) == BranchRealization.FINITE_FOSTER
+        assert (
+            classify_branch_realization(targets, _RM, is_series=True, branch_tol=bt)
+            == BranchRealization.FINITE_FOSTER
+        )
+
+
+class TestShuntSmallFiniteFoster:
+    """#36: A near-zero finite shunt target remains FINITE_FOSTER (not ZERO_IMPEDANCE)."""
+
+    def test_small_finite_shunt(self):
+        targets = (
+            ReactanceTarget(10e6, 1e-10, ReactanceTargetState.FINITE),
+            ReactanceTarget(11e6, -1e-10, ReactanceTargetState.FINITE),
+        )
+        # For series, it would be ZERO_IMPEDANCE
+        assert (
+            classify_branch_realization(targets, 50.0, is_series=True)
+            == BranchRealization.ZERO_IMPEDANCE
+        )
+        # For shunt, it must remain FINITE_FOSTER to avoid false invalidation
+        assert (
+            classify_branch_realization(targets, 50.0, is_series=False)
+            == BranchRealization.FINITE_FOSTER
+        )
+
+
+class TestShuntExactZeroInvalid:
+    """#37: An exact zero shunt target becomes ZERO_IMPEDANCE (structurally invalid)."""
+
+    def test_exact_zero_shunt(self):
+        targets = (
+            ReactanceTarget(10e6, 0.0, ReactanceTargetState.FINITE),
+            ReactanceTarget(11e6, 0.0, ReactanceTargetState.FINITE),
+        )
+        # Even for shunt, exact 0.0 means ZERO_IMPEDANCE
+        realization = classify_branch_realization(targets, 50.0, is_series=False)
+        assert realization == BranchRealization.ZERO_IMPEDANCE
+
+        # And validate_branch_realization_legality rejects it
+        from foster_eom.foster.schmidt import validate_branch_realization_legality
+
+        legal, _ = validate_branch_realization_legality(realization, is_series=False)
+        assert not legal

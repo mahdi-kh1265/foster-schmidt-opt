@@ -487,3 +487,51 @@ class TestResultReportsFPolesHz:
         result = solve_foster_system(system, f_p)
         assert result.solver_status != ""
         assert isinstance(result.solver_status, str)
+
+
+class TestNumericalConditioningVsPoleSeparation:
+    """Diagnostic test for numerical conditioning as poles approach one another."""
+
+    def test_conditioning_vs_separation(self):
+        # We sweep pole separation and verify that condition number degrades
+        # but the solver remains stable thanks to bounded LS and row/col scaling.
+        # Two poles centered at 10 MHz.
+        f_center = 10e6
+        separations = [1e6, 1e5, 10e3, 1e3, 100.0]
+
+        f_t = np.linspace(8e6, 12e6, 21)
+        # Synthesize a clean target from known coefficients
+        k_true = np.array([5e14, 5e14])
+
+        # We expect cond number to monotonically increase as separation decreases
+        cond_numbers = []
+        max_errors = []
+
+        for sep in separations:
+            fp = np.array([f_center - sep / 2, f_center + sep / 2])
+            # generate clean targets
+            xt = foster_reactance_hz(f_t, 0.0, 0.0, k_true, fp)
+
+            from foster_eom.foster.foster_form import CoefficientBounds
+
+            bounds = CoefficientBounds(
+                k0_bounds=None,
+                kinf_bounds=None,
+                km_bounds=((0.0, 1e18), (0.0, 1e18)),
+                any_infeasible=False,
+                infeasible_cells=(),
+            )
+
+            system = build_foster_linear_system(f_t, xt, fp, False, False, bounds)
+            result = solve_foster_system(system, fp)
+
+            assert result.feasible
+            cond_numbers.append(result.scaled_condition_number)
+            max_errors.append(result.max_target_error_ohm)
+
+        # Verify condition number increases as separation decreases
+        for i in range(1, len(cond_numbers)):
+            assert cond_numbers[i] > cond_numbers[i - 1]
+
+        # Verify that even at 100 Hz separation, the error remains reasonable (e.g. < 0.1 ohm)
+        assert max_errors[-1] < 0.1

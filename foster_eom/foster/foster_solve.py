@@ -475,11 +475,15 @@ def solve_foster_system(
 def _is_lsq_converged(result: object) -> bool:
     """Check scipy lsq_linear convergence from its status field."""
     # scipy.optimize.lsq_linear sets .status:
-    #   1 = converged to tol, 2 = max iter, 3 = regularization, -1 = error
+    #  -1 = error
+    #   0 = max iterations exceeded
+    #   1 = g_norm < gtol (converged)
+    #   2 = dx_norm < xtol (converged)
+    #   3 = f_norm < ftol (converged)
     status_val = getattr(result, "status", None)
     if status_val is None:
-        return True  # defensive
-    return int(status_val) in (1, 3)  # 1 = converged, 3 = regularization active
+        return True  # defensive fallback
+    return int(status_val) in (1, 2, 3)
 
 
 def _trivial_result(

@@ -536,6 +536,7 @@ def validate_schmidt_targets_algebraic(
 def classify_branch_realization(
     targets: tuple[ReactanceTarget, ...],
     r_match_ohm: float,
+    is_series: bool,
     branch_tol: FosterBranchTolerances | None = None,
 ) -> BranchRealization:
     """Classify a branch's target list into a realization state.
@@ -547,6 +548,8 @@ def classify_branch_realization(
     r_match_ohm : float
         Match resistance — used as the physically independent scale
         for zero-reactance classification.
+    is_series : bool
+        True if the branch is series, False if shunt.
     branch_tol : FosterBranchTolerances | None
         Tolerances for zero classification.
 
@@ -584,7 +587,17 @@ def classify_branch_realization(
         if t.state == ReactanceTargetState.FINITE
     )
     if all_zero:
-        return BranchRealization.ZERO_IMPEDANCE
+        if is_series:
+            return BranchRealization.ZERO_IMPEDANCE
+        else:
+            # For shunt, only exactly 0.0 becomes ZERO_IMPEDANCE (which is illegal).
+            # Small finite values remain FINITE_FOSTER to avoid false infeasibility.
+            exact_zero = all(
+                t.value_ohm == 0.0 for t in targets if t.state == ReactanceTargetState.FINITE
+            )
+            if exact_zero:
+                return BranchRealization.ZERO_IMPEDANCE
+            return BranchRealization.FINITE_FOSTER
 
     return BranchRealization.FINITE_FOSTER
 

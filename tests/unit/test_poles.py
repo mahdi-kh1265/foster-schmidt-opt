@@ -307,3 +307,25 @@ class TestMatchingReturnsExplicitPairs:
         rk, aj = result.matching[0]
         assert rk == 0
         assert aj == 0
+
+
+class TestMatchingRequiresBacktracking:
+    """#94: A perfect matching exists but fails placement; another succeeds."""
+
+    def test_backtracking(self):
+        # We want separation to kill the first matching but allow the second.
+        from foster_eom.foster.poles import check_required_interval_feasibility
+
+        req = [
+            RequiredPoleIntervalHz(1e6, 4e6),
+            RequiredPoleIntervalHz(2e6, 5e6),
+        ]
+        spec = _spec_intervals([(3e6, 7e6), (1e6, 5e6)], sep=2e6, excl=0.0)
+        import numpy as np
+
+        f_t = np.array([10e6])
+        result = check_required_interval_feasibility(
+            req, n_cells=2, pole_spec=spec, f_targets_hz=f_t
+        )
+        assert result.feasible
+        assert len(result.matching) == 2
