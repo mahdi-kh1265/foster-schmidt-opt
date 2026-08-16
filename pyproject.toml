@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "foster-eom"
+version = "0.1.0"
+description = "Foster–Schmidt multi-frequency EOM matching-network optimizer"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "pydantic>=2.5",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+rf = [
+    "scikit-rf>=0.30",
+]
+gui = [
+    "PySide6>=6.5",
+    "matplotlib>=3.7",
+]
+opt = [
+    "cyipopt>=1.3",
+]
+test = [
+    "pytest>=7.4",
+    "hypothesis>=6.80",
+]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+all = [
+    "foster-eom[rf,gui,opt,test,dev]",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["foster_eom"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "requires_ipopt: tests requiring cyipopt/Ipopt",
+    "requires_ngspice: tests requiring ngspice executable",
+    "requires_gui: tests requiring PySide6/Qt",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

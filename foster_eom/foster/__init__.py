@@ -1,0 +1,1 @@
+"""Foster/Schmidt synthesis engine."""
