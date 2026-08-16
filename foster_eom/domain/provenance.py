@@ -72,9 +72,7 @@ class RunManifest(BaseModel):
     component_library_hashes: dict[str, str] = Field(default_factory=dict)
     solver_settings: dict[str, Any] = Field(default_factory=dict)
     worker_count: int | None = None
-    start_time: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat()
-    )
+    start_time: str = Field(default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat())
     end_time: str | None = None
     termination_reason: str | None = None
 
@@ -91,11 +89,11 @@ def collect_dependency_versions() -> dict[str, str]:
     for pkg_name in ["numpy", "scipy", "pydantic", "yaml", "skrf"]:
         try:
             if pkg_name == "yaml":
-                import yaml  # type: ignore[import-untyped]
+                import yaml
 
                 versions["PyYAML"] = getattr(yaml, "__version__", "unknown")
             elif pkg_name == "skrf":
-                import skrf  # type: ignore[import-untyped]
+                import skrf  # type: ignore[import-not-found]
 
                 versions["scikit-rf"] = getattr(skrf, "__version__", "unknown")
             else:
@@ -109,6 +107,7 @@ def collect_dependency_versions() -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Content hashing
 # ---------------------------------------------------------------------------
+
 
 def hash_file(path: str) -> str:
     """Compute SHA-256 hex digest of a file.

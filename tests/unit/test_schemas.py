@@ -32,6 +32,7 @@ from foster_eom.domain.topology import (
 # SourceSpec
 # ---------------------------------------------------------------------------
 
+
 class TestSourceSpec:
     def test_available_power_valid(self) -> None:
         s = SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=20.0)
@@ -90,6 +91,7 @@ class TestSourceSpec:
 # ---------------------------------------------------------------------------
 # FrequencyPlan
 # ---------------------------------------------------------------------------
+
 
 class TestFrequencyPlan:
     def _make_targets(self, freqs: list[float]) -> list[FrequencyTarget]:
@@ -188,6 +190,7 @@ class TestFrequencyPlan:
 # Topology and Pole specs
 # ---------------------------------------------------------------------------
 
+
 class TestTopologySpec:
     def test_valid_default(self) -> None:
         t = TopologySearchSpec()
@@ -230,6 +233,7 @@ class TestTopologySpec:
 # Component policy
 # ---------------------------------------------------------------------------
 
+
 class TestComponentPolicy:
     def test_valid_default(self) -> None:
         cp = ComponentPolicy()
@@ -255,6 +259,7 @@ class TestComponentPolicy:
 # ---------------------------------------------------------------------------
 # Constraints
 # ---------------------------------------------------------------------------
+
 
 class TestConstraints:
     def test_match_constraints_valid(self) -> None:
@@ -282,6 +287,7 @@ class TestConstraints:
 # ---------------------------------------------------------------------------
 # EOM model spec
 # ---------------------------------------------------------------------------
+
 
 class TestEOMModelSpec:
     def test_ideal_capacitor_valid(self) -> None:
@@ -334,6 +340,7 @@ class TestEOMModelSpec:
 # ---------------------------------------------------------------------------
 # ProjectSpec (minimal aggregate test)
 # ---------------------------------------------------------------------------
+
 
 class TestProjectSpec:
     def _make_project(self) -> ProjectSpec:

@@ -59,6 +59,7 @@ from foster_eom.units import (
 # Frequency conversions
 # ---------------------------------------------------------------------------
 
+
 class TestFrequencyConversions:
     def test_khz_round_trip(self) -> None:
         assert hz_to_khz(khz_to_hz(1.0)) == pytest.approx(1.0)
@@ -87,6 +88,7 @@ class TestFrequencyConversions:
 # Inductance conversions
 # ---------------------------------------------------------------------------
 
+
 class TestInductanceConversions:
     def test_uh_round_trip(self) -> None:
         assert h_to_uh(uh_to_h(4.7)) == pytest.approx(4.7)
@@ -102,6 +104,7 @@ class TestInductanceConversions:
 # Capacitance conversions
 # ---------------------------------------------------------------------------
 
+
 class TestCapacitanceConversions:
     def test_pf_round_trip(self) -> None:
         assert f_to_pf(pf_to_f(12.0)) == pytest.approx(12.0)
@@ -116,6 +119,7 @@ class TestCapacitanceConversions:
 # ---------------------------------------------------------------------------
 # Voltage conversions — sqrt(2) trap tests
 # ---------------------------------------------------------------------------
+
 
 class TestVoltageConversions:
     def test_vrms_to_vpeak(self) -> None:
@@ -150,6 +154,7 @@ class TestVoltageConversions:
 # Current conversions
 # ---------------------------------------------------------------------------
 
+
 class TestCurrentConversions:
     def test_irms_to_ipeak(self) -> None:
         assert irms_to_ipeak(1.0) == pytest.approx(SQRT2)
@@ -161,6 +166,7 @@ class TestCurrentConversions:
 # ---------------------------------------------------------------------------
 # Power conversions
 # ---------------------------------------------------------------------------
+
 
 class TestPowerConversions:
     def test_0_dbm_is_1_mw(self) -> None:
@@ -188,6 +194,7 @@ class TestPowerConversions:
 # Angle conversions
 # ---------------------------------------------------------------------------
 
+
 class TestAngleConversions:
     def test_deg_to_rad_90(self) -> None:
         assert deg_to_rad(90.0) == pytest.approx(math.pi / 2.0)
@@ -199,6 +206,7 @@ class TestAngleConversions:
 # ---------------------------------------------------------------------------
 # Source convention conversions — CRITICAL factor-of-two tests
 # ---------------------------------------------------------------------------
+
 
 class TestSourceConventions:
     def test_available_power_to_vth_known(self) -> None:
@@ -265,6 +273,7 @@ class TestSourceConventions:
 # ---------------------------------------------------------------------------
 # Impedance / reflection
 # ---------------------------------------------------------------------------
+
 
 class TestImpedanceReflection:
     def test_50_ohm_perfect_match(self) -> None:

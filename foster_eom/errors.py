@@ -17,6 +17,7 @@ from typing import Any
 # Warning severity
 # ---------------------------------------------------------------------------
 
+
 class WarningSeverity(enum.Enum):
     """Warning severity levels."""
 
@@ -29,6 +30,7 @@ class WarningSeverity(enum.Enum):
 # ---------------------------------------------------------------------------
 # Structured warning record
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class WarningRecord:
@@ -65,6 +67,7 @@ class WarningRecord:
 # Base exception
 # ---------------------------------------------------------------------------
 
+
 class FosterEOMError(Exception):
     """Base exception for all foster_eom errors."""
 
@@ -72,6 +75,7 @@ class FosterEOMError(Exception):
 # ---------------------------------------------------------------------------
 # Domain / validation exceptions
 # ---------------------------------------------------------------------------
+
 
 class ProjectValidationError(FosterEOMError):
     """Project specification fails validation."""
@@ -89,6 +93,7 @@ class SchemaMigrationError(FosterEOMError):
 # Model exceptions
 # ---------------------------------------------------------------------------
 
+
 class ModelValidityError(FosterEOMError):
     """Frequency or parameter is outside model validity range."""
 
@@ -100,6 +105,7 @@ class ModelParseError(FosterEOMError):
 # ---------------------------------------------------------------------------
 # Topology / synthesis exceptions
 # ---------------------------------------------------------------------------
+
 
 class TopologyError(FosterEOMError):
     """Topology is invalid, infeasible, or violates constraints."""
@@ -113,6 +119,7 @@ class FosterSynthesisError(FosterEOMError):
 # Circuit engine exceptions
 # ---------------------------------------------------------------------------
 
+
 class CircuitSingularityError(FosterEOMError):
     """MNA matrix is singular or ill-conditioned at evaluation frequency."""
 
@@ -120,6 +127,7 @@ class CircuitSingularityError(FosterEOMError):
 # ---------------------------------------------------------------------------
 # Optimization exceptions
 # ---------------------------------------------------------------------------
+
 
 class OptimizationError(FosterEOMError):
     """Optimizer failure that is not a candidate-level invalidity."""
@@ -129,6 +137,7 @@ class OptimizationError(FosterEOMError):
 # Catalog exceptions
 # ---------------------------------------------------------------------------
 
+
 class CatalogError(FosterEOMError):
     """Component catalog/library operation error."""
 
@@ -137,6 +146,7 @@ class CatalogError(FosterEOMError):
 # SPICE / verification exceptions
 # ---------------------------------------------------------------------------
 
+
 class SpiceVerificationError(FosterEOMError):
     """ngspice execution or cross-check failure."""
 
@@ -144,6 +154,7 @@ class SpiceVerificationError(FosterEOMError):
 # ---------------------------------------------------------------------------
 # Infeasibility reasons  (spec §22.1)
 # ---------------------------------------------------------------------------
+
 
 class InfeasibilityReason(enum.Enum):
     """Structured reasons for design infeasibility."""
@@ -164,6 +175,7 @@ class InfeasibilityReason(enum.Enum):
 # ---------------------------------------------------------------------------
 # Circuit solve status  (spec §B.3)
 # ---------------------------------------------------------------------------
+
 
 class CircuitSolveStatus(enum.Enum):
     """Status of a single-frequency circuit solve."""

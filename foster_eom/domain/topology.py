@@ -57,8 +57,7 @@ class PoleInterval(BaseModel, frozen=True):
             self.initial_hz < self.min_hz or self.initial_hz > self.max_hz
         ):
             raise ValueError(
-                f"initial_hz ({self.initial_hz}) must be within "
-                f"[{self.min_hz}, {self.max_hz}]"
+                f"initial_hz ({self.initial_hz}) must be within [{self.min_hz}, {self.max_hz}]"
             )
         if self.locked and self.initial_hz is None:
             raise ValueError("locked pole requires initial_hz")
@@ -103,9 +102,7 @@ class PoleSpec(BaseModel, frozen=True):
         if self.allowed_band_hz is not None:
             lo, hi = self.allowed_band_hz
             if lo >= hi:
-                raise ValueError(
-                    f"allowed_band_hz lower ({lo}) must be < upper ({hi})"
-                )
+                raise ValueError(f"allowed_band_hz lower ({lo}) must be < upper ({hi})")
         return self
 
 

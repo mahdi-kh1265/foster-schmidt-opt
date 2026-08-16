@@ -87,9 +87,7 @@ class ProjectSpec(BaseModel, frozen=True):
     optimization: OptimizationSpec = Field(default_factory=OptimizationSpec)
     analysis: AnalysisSpec = Field(default_factory=AnalysisSpec)
     export: ExportSpec = Field(default_factory=ExportSpec)
-    created_at: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat()
-    )
+    created_at: str = Field(default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat())
     modified_at: str = Field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat()
     )

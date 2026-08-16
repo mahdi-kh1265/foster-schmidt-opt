@@ -146,6 +146,7 @@ def vrms_to_vpp(v_rms: float) -> float:
 # Current  (RMS is the internal convention)
 # ---------------------------------------------------------------------------
 
+
 def ipeak_to_irms(i_peak: float) -> float:
     """Convert sinusoidal peak current to RMS current."""
     return i_peak / SQRT2
@@ -160,9 +161,10 @@ def irms_to_ipeak(i_rms: float) -> float:
 # Power
 # ---------------------------------------------------------------------------
 
+
 def dbm_to_w(p_dbm: float) -> float:
     """Convert dBm to watts."""
-    return 1.0e-3 * 10.0 ** (p_dbm / 10.0)
+    return float(1.0e-3 * 10.0 ** (p_dbm / 10.0))
 
 
 def w_to_dbm(p_w: float) -> float:
@@ -175,6 +177,7 @@ def w_to_dbm(p_w: float) -> float:
 # ---------------------------------------------------------------------------
 # Angle
 # ---------------------------------------------------------------------------
+
 
 def deg_to_rad(deg: float) -> float:
     """Convert degrees to radians."""
@@ -189,6 +192,7 @@ def rad_to_deg(rad: float) -> float:
 # ---------------------------------------------------------------------------
 # Source-convention conversions  (spec §3.2)
 # ---------------------------------------------------------------------------
+
 
 def available_power_to_vth_rms(p_av_w: float, r_s: float) -> float:
     """Compute Thévenin RMS voltage from available power and real source resistance.
@@ -293,6 +297,7 @@ def generator_display_to_vth_rms(
 # Impedance / reflection  (spec §3.4)
 # ---------------------------------------------------------------------------
 
+
 def z_to_gamma(z_in: complex, z_ref: float = 50.0) -> complex:
     """Compute reflection coefficient from impedance.
 
@@ -373,15 +378,16 @@ def s11_db_from_gamma(gamma: complex) -> float:
 # Vectorized helpers (NumPy)
 # ---------------------------------------------------------------------------
 
-def z_to_gamma_array(
-    z_in: np.ndarray, z_ref: float = 50.0
-) -> np.ndarray:
+
+def z_to_gamma_array(z_in: np.ndarray, z_ref: float = 50.0) -> np.ndarray:  # type: ignore[type-arg]
     """Vectorized reflection coefficient computation."""
-    return (z_in - z_ref) / (z_in + z_ref)
+    result: np.ndarray = (z_in - z_ref) / (z_in + z_ref)  # type: ignore[type-arg]
+    return result
 
 
-def s11_db_array(z_in: np.ndarray, z_ref: float = 50.0) -> np.ndarray:
+def s11_db_array(z_in: np.ndarray, z_ref: float = 50.0) -> np.ndarray:  # type: ignore[type-arg]
     """Vectorized S11 in dB."""
     gamma = z_to_gamma_array(z_in, z_ref)
     with np.errstate(divide="ignore"):
-        return 20.0 * np.log10(np.abs(gamma))
+        result: np.ndarray = 20.0 * np.log10(np.abs(gamma))  # type: ignore[type-arg]
+        return result

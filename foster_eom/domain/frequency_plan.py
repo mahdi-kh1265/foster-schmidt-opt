@@ -59,9 +59,7 @@ class FrequencyTarget(BaseModel, frozen=True):
         vtgt = self.voltage_target_rms_v
 
         if vmin is not None and vmax is not None and vmin > vmax:
-            raise ValueError(
-                f"voltage_min_rms_v ({vmin}) must be ≤ voltage_max_rms_v ({vmax})"
-            )
+            raise ValueError(f"voltage_min_rms_v ({vmin}) must be ≤ voltage_max_rms_v ({vmax})")
         if vtgt is not None:
             if vmin is not None and vtgt < vmin:
                 raise ValueError(

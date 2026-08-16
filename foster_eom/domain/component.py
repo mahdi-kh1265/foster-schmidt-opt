@@ -32,13 +32,9 @@ class ContinuousLimits(BaseModel, frozen=True):
     @model_validator(mode="after")
     def _validate_ranges(self) -> ContinuousLimits:
         if self.l_min_h > self.l_max_h:
-            raise ValueError(
-                f"l_min_h ({self.l_min_h}) must be ≤ l_max_h ({self.l_max_h})"
-            )
+            raise ValueError(f"l_min_h ({self.l_min_h}) must be ≤ l_max_h ({self.l_max_h})")
         if self.c_min_f > self.c_max_f:
-            raise ValueError(
-                f"c_min_f ({self.c_min_f}) must be ≤ c_max_f ({self.c_max_f})"
-            )
+            raise ValueError(f"c_min_f ({self.c_min_f}) must be ≤ c_max_f ({self.c_max_f})")
         return self
 
 

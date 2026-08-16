@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import IO
 
 PACKAGE_LOGGER_NAME = "foster_eom"
 
@@ -29,7 +30,7 @@ def get_logger(name: str) -> logging.Logger:
 
 def configure_logging(
     level: int = logging.INFO,
-    stream: object | None = None,
+    stream: IO[str] | None = None,
 ) -> None:
     """Configure the package root logger.
 

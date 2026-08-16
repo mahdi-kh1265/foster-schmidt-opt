@@ -27,7 +27,9 @@ from foster_eom.errors import ProjectValidationError, SchemaVersionError
 from foster_eom.persistence.yaml_io import load_project, save_project
 
 # Path to example YAML in the fs-theo handoff package
-EXAMPLE_YAML = Path(__file__).parent.parent.parent / "fs-theo" / "examples" / "design_spec.example.yaml"
+EXAMPLE_YAML = (
+    Path(__file__).parent.parent.parent / "fs-theo" / "examples" / "design_spec.example.yaml"
+)
 
 
 def _make_test_project() -> ProjectSpec:
@@ -64,6 +66,7 @@ def _make_test_project() -> ProjectSpec:
 # ---------------------------------------------------------------------------
 # YAML round-trip tests
 # ---------------------------------------------------------------------------
+
 
 class TestYAMLRoundTrip:
     def test_round_trip(self, tmp_path: Path) -> None:
@@ -120,6 +123,7 @@ class TestYAMLRoundTrip:
 # Example YAML loading
 # ---------------------------------------------------------------------------
 
+
 class TestExampleYAML:
     @pytest.mark.skipif(
         not EXAMPLE_YAML.exists(),
@@ -159,6 +163,7 @@ class TestExampleYAML:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestYAMLErrors:
     def test_unsupported_schema_version(self, tmp_path: Path) -> None:
         path = tmp_path / "bad_version.fseom.yaml"
@@ -176,6 +181,7 @@ class TestYAMLErrors:
 # ---------------------------------------------------------------------------
 # Provenance and hashing
 # ---------------------------------------------------------------------------
+
 
 class TestProvenance:
     def test_run_manifest_creation(self) -> None:
@@ -239,3 +245,180 @@ class TestProvenance:
     def test_hash_string_hypothesis(self, text: str) -> None:
         """Property: same input always produces same hash."""
         assert hash_string(text) == hash_string(text)
+
+
+# ---------------------------------------------------------------------------
+# Acceptance-audit tests
+# ---------------------------------------------------------------------------
+
+
+class TestArbitraryFrequencyRoundTrip:
+    """Verify arbitrary target-frequency lists survive YAML save/load."""
+
+    def test_single_target(self, tmp_path: Path) -> None:
+        spec = ProjectSpec(
+            source=SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=10.0),
+            eom=EOMModelSpec(model_type=EOMModelType.IDEAL_CAPACITOR, c0_f=5e-12),
+            frequencies=FrequencyPlan(
+                targets=[FrequencyTarget(label="lone", frequency_hz=7.123456e6)],
+                sweep_f_min_hz=1e6,
+                sweep_f_max_hz=20e6,
+            ),
+        )
+        path = tmp_path / "single.fseom.yaml"
+        save_project(spec, path)
+        loaded = load_project(path)
+        assert len(loaded.frequencies.targets) == 1
+        assert loaded.frequencies.targets[0].frequency_hz == pytest.approx(7.123456e6)
+
+    def test_five_arbitrary_targets(self, tmp_path: Path) -> None:
+        """5 non-standard frequencies with fractional Hz values."""
+        freqs = [3.14159e6, 6.28318e6, 12.5663e6, 18.8496e6, 25.1327e6]
+        spec = ProjectSpec(
+            source=SourceSpec(mode=SourceMode.THEVENIN, thevenin_vrms=5.0),
+            eom=EOMModelSpec(model_type=EOMModelType.IDEAL_CAPACITOR, c0_f=8e-12),
+            frequencies=FrequencyPlan(
+                targets=[
+                    FrequencyTarget(label=f"f{i}", frequency_hz=f) for i, f in enumerate(freqs)
+                ],
+                sweep_f_min_hz=1e6,
+                sweep_f_max_hz=30e6,
+            ),
+        )
+        path = tmp_path / "five.fseom.yaml"
+        save_project(spec, path)
+        loaded = load_project(path)
+        assert len(loaded.frequencies.targets) == 5
+        for orig_f, loaded_t in zip(freqs, loaded.frequencies.enabled_targets, strict=True):
+            assert loaded_t.frequency_hz == pytest.approx(orig_f)
+
+    def test_two_targets(self, tmp_path: Path) -> None:
+        """Two targets — confirms no hard-coded three-target assumption."""
+        spec = ProjectSpec(
+            source=SourceSpec(mode=SourceMode.AVAILABLE_POWER, available_power_dbm=20.0),
+            eom=EOMModelSpec(model_type=EOMModelType.IDEAL_CAPACITOR, c0_f=10e-12),
+            frequencies=FrequencyPlan(
+                targets=[
+                    FrequencyTarget(label="a", frequency_hz=1.5e6),
+                    FrequencyTarget(label="b", frequency_hz=22.0e6),
+                ],
+                sweep_f_min_hz=1e6,
+                sweep_f_max_hz=25e6,
+            ),
+        )
+        path = tmp_path / "two.fseom.yaml"
+        save_project(spec, path)
+        loaded = load_project(path)
+        assert len(loaded.frequencies.targets) == 2
+
+
+class TestSourceRefImpedanceIndependence:
+    """Verify z_source and z_ref are separate concepts."""
+
+    def test_non_50_source_with_50_ref(self) -> None:
+        s = SourceSpec(
+            mode=SourceMode.AVAILABLE_POWER,
+            available_power_dbm=20.0,
+            z_source_real_ohm=75.0,
+            z_ref_ohm=50.0,
+        )
+        assert s.z_source_real_ohm == 75.0
+        assert s.z_ref_ohm == 50.0
+        assert s.z_source_real_ohm != s.z_ref_ohm
+
+    def test_50_source_with_non_50_ref(self) -> None:
+        s = SourceSpec(
+            mode=SourceMode.THEVENIN,
+            thevenin_vrms=5.0,
+            z_source_real_ohm=50.0,
+            z_ref_ohm=75.0,
+        )
+        assert s.z_source_real_ohm == 50.0
+        assert s.z_ref_ohm == 75.0
+
+    def test_both_non_50(self) -> None:
+        s = SourceSpec(
+            mode=SourceMode.AVAILABLE_POWER,
+            available_power_dbm=20.0,
+            z_source_real_ohm=100.0,
+            z_ref_ohm=75.0,
+        )
+        assert s.z_source_real_ohm == 100.0
+        assert s.z_ref_ohm == 75.0
+
+    def test_non_50_source_affects_vth(self) -> None:
+        """P_av into non-50Ω must use actual R_s, not silently use 50."""
+        import math
+
+        s = SourceSpec(
+            mode=SourceMode.AVAILABLE_POWER,
+            available_power_dbm=20.0,
+            z_source_real_ohm=75.0,
+        )
+        p_w = 0.1  # 20 dBm
+        expected = 2.0 * math.sqrt(p_w * 75.0)
+        assert s.vth_rms == pytest.approx(expected)
+        # NOT 2*sqrt(0.1*50) which would be the 50Ω answer
+        wrong = 2.0 * math.sqrt(p_w * 50.0)
+        assert s.vth_rms != pytest.approx(wrong)
+
+    def test_round_trip_preserves_both(self, tmp_path: Path) -> None:
+        """YAML round-trip preserves independent z_source and z_ref."""
+        spec = ProjectSpec(
+            source=SourceSpec(
+                mode=SourceMode.AVAILABLE_POWER,
+                available_power_dbm=20.0,
+                z_source_real_ohm=100.0,
+                z_source_imag_ohm=25.0,
+                z_ref_ohm=75.0,
+            ),
+            eom=EOMModelSpec(model_type=EOMModelType.IDEAL_CAPACITOR, c0_f=10e-12),
+            frequencies=FrequencyPlan(
+                targets=[FrequencyTarget(frequency_hz=10e6)],
+                sweep_f_min_hz=5e6,
+                sweep_f_max_hz=15e6,
+            ),
+        )
+        path = tmp_path / "impedance.fseom.yaml"
+        save_project(spec, path)
+        loaded = load_project(path)
+        assert loaded.source.z_source_real_ohm == pytest.approx(100.0)
+        assert loaded.source.z_source_imag_ohm == pytest.approx(25.0)
+        assert loaded.source.z_ref_ohm == pytest.approx(75.0)
+
+
+class TestProvenanceCompleteness:
+    """Verify all required provenance fields exist as placeholders."""
+
+    def test_all_required_fields_present(self) -> None:
+        m = RunManifest()
+        assert hasattr(m, "project_schema_version")
+        assert hasattr(m, "project_spec_hash")
+        assert hasattr(m, "software_git_commit")
+        assert hasattr(m, "python_version")
+        assert hasattr(m, "package_versions")
+        assert hasattr(m, "random_seed")
+        assert hasattr(m, "eom_model_hash")
+        assert hasattr(m, "solver_settings")
+        assert hasattr(m, "worker_count")
+
+    def test_optional_fields_accept_none(self) -> None:
+        m = RunManifest()
+        assert m.software_git_commit is None
+        assert m.eom_model_hash is None
+        assert m.worker_count is None
+
+    def test_populated_fields(self) -> None:
+        m = RunManifest(
+            project_schema_version="0.1",
+            project_spec_hash="abc123",
+            software_git_commit="deadbeef",
+            random_seed=42,
+            eom_model_hash="hash_of_model",
+            solver_settings={"method": "ipopt", "tol": 1e-8},
+            worker_count=4,
+            package_versions={"numpy": "2.0"},
+        )
+        assert m.project_schema_version == "0.1"
+        assert m.worker_count == 4
+        assert m.solver_settings["method"] == "ipopt"

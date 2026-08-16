@@ -96,18 +96,12 @@ class SourceSpec(BaseModel, frozen=True):
                 )
         elif self.mode == SourceMode.THEVENIN:
             if self.thevenin_vrms is None and self.thevenin_vpp is None:
-                raise ValueError(
-                    "thevenin mode requires thevenin_vrms or thevenin_vpp"
-                )
+                raise ValueError("thevenin mode requires thevenin_vrms or thevenin_vpp")
         elif self.mode == SourceMode.GENERATOR_INTO_Z0:
             if self.generator_display_v is None:
-                raise ValueError(
-                    "generator_into_z0 mode requires generator_display_v"
-                )
+                raise ValueError("generator_into_z0 mode requires generator_display_v")
             if self.generator_display_convention is None:
-                raise ValueError(
-                    "generator_into_z0 mode requires generator_display_convention"
-                )
+                raise ValueError("generator_into_z0 mode requires generator_display_convention")
         return self
 
     @property

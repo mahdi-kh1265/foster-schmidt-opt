@@ -111,6 +111,7 @@ def load_project(path: str | Path) -> ProjectSpec:
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
+
 def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
     """Convert a ProjectSpec to a YAML-friendly dict.
 
@@ -142,7 +143,10 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
     elif spec.source.mode == SourceMode.GENERATOR_INTO_Z0:
         src["generator_display_v"] = spec.source.generator_display_v
         src["generator_display_convention"] = spec.source.generator_display_convention
-    src["z_source_ohm"] = {"real": spec.source.z_source_real_ohm, "imag": spec.source.z_source_imag_ohm}
+    src["z_source_ohm"] = {
+        "real": spec.source.z_source_real_ohm,
+        "imag": spec.source.z_source_imag_ohm,
+    }
     src["z_ref_ohm"] = spec.source.z_ref_ohm
     src["phase_deg"] = spec.source.phase_deg
     src["insertion_loss_db"] = spec.source.insertion_loss_db
@@ -171,8 +175,7 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
         eom["static_branch"] = static
     if spec.eom.motional_branches:
         eom["motional_branches"] = [
-            {"Rm_ohm": b.rm_ohm, "Lm_H": b.lm_h, "Cm_F": b.cm_f}
-            for b in spec.eom.motional_branches
+            {"Rm_ohm": b.rm_ohm, "Lm_H": b.lm_h, "Cm_F": b.cm_f} for b in spec.eom.motional_branches
         ]
     if spec.eom.data_file is not None:
         eom["data_file"] = spec.eom.data_file
@@ -182,9 +185,7 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
 
     # Frequencies
     freq: dict[str, Any] = {
-        "targets": [
-            _freq_target_to_dict(t) for t in spec.frequencies.targets
-        ],
+        "targets": [_freq_target_to_dict(t) for t in spec.frequencies.targets],
         "verification_band_hz": [spec.frequencies.sweep_f_min_hz, spec.frequencies.sweep_f_max_hz],
         "base_grid_points": spec.frequencies.base_grid_points,
         "adaptive_refinement": spec.frequencies.adaptive_sweep_enabled,
@@ -194,15 +195,24 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
     # Matching
     d["matching"] = {
         "gamma_max_at_targets": spec.matching.gamma_max,
-        "resistance_window_ohm": [spec.matching.resistance_min_ohm, spec.matching.resistance_max_ohm],
+        "resistance_window_ohm": [
+            spec.matching.resistance_min_ohm,
+            spec.matching.resistance_max_ohm,
+        ],
         "max_abs_reactance_ohm": spec.matching.max_abs_reactance_ohm,
     }
 
     # Topology
     topo: dict[str, Any] = {
         "orientations": [o.value for o in spec.topology.orientations],
-        "branch1_cells": {"min": spec.topology.branch1_cells_min, "max": spec.topology.branch1_cells_max},
-        "branch2_cells": {"min": spec.topology.branch2_cells_min, "max": spec.topology.branch2_cells_max},
+        "branch1_cells": {
+            "min": spec.topology.branch1_cells_min,
+            "max": spec.topology.branch1_cells_max,
+        },
+        "branch2_cells": {
+            "min": spec.topology.branch2_cells_min,
+            "max": spec.topology.branch2_cells_max,
+        },
         "endpoint_series_cap_allowed": spec.topology.endpoint_series_cap_branch1,
         "endpoint_series_ind_allowed": spec.topology.endpoint_series_ind_branch1,
         "max_total_reactive_components": spec.topology.max_total_reactive_components,
@@ -334,6 +344,7 @@ def _freq_target_to_dict(t: FrequencyTarget) -> dict[str, Any]:
 # Deserialization helpers
 # ---------------------------------------------------------------------------
 
+
 def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
     """Convert a YAML dict to a validated ProjectSpec."""
     # Project metadata
@@ -440,7 +451,9 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
     )
 
     topology = TopologySearchSpec(
-        orientations=[LOrientation(o) for o in topo_data.get("orientations", ["schmidt_shunt_then_series"])],
+        orientations=[
+            LOrientation(o) for o in topo_data.get("orientations", ["schmidt_shunt_then_series"])
+        ],
         branch1_cells_min=b1.get("min", 1),
         branch1_cells_max=b1.get("max", 3),
         branch2_cells_min=b2.get("min", 1),
@@ -461,8 +474,10 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
     c_range = cl_data.get("C_F", [0.2e-12, 20e-9])
     components = ComponentPolicy(
         continuous_limits=ContinuousLimits(
-            l_min_h=l_range[0], l_max_h=l_range[1],
-            c_min_f=c_range[0], c_max_f=c_range[1],
+            l_min_h=l_range[0],
+            l_max_h=l_range[1],
+            c_min_f=c_range[0],
+            c_max_f=c_range[1],
         ),
         capacitor_dielectrics=comp_data.get("capacitor_dielectrics", ["C0G", "NP0"]),
         min_inductor_srf_ratio=comp_data.get("min_inductor_srf_ratio", 2.0),
@@ -527,7 +542,9 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
     analysis = AnalysisSpec(
         detect_unintended_resonances=an_data.get("detect_unintended_resonances", True),
         time_domain_reconstruction=an_data.get("time_domain_reconstruction", True),
-        time_domain_phase_mode=TimeDomainPhaseMode(an_data.get("time_domain_phase_mode", "specified")),
+        time_domain_phase_mode=TimeDomainPhaseMode(
+            an_data.get("time_domain_phase_mode", "specified")
+        ),
         spice_verification=SpiceVerificationMode(an_data.get("spice_verification", "optional")),
     )
 

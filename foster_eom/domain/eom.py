@@ -128,7 +128,5 @@ class EOMModelSpec(BaseModel, frozen=True):
             if lo <= 0.0 or hi <= 0.0:
                 raise ValueError("validity_hz bounds must be positive")
             if lo >= hi:
-                raise ValueError(
-                    f"validity_hz lower ({lo}) must be < upper ({hi})"
-                )
+                raise ValueError(f"validity_hz lower ({lo}) must be < upper ({hi})")
         return self
