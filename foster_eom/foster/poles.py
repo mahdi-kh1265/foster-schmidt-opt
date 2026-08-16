@@ -501,3 +501,98 @@ def generate_pole_candidates(
 
     assigned_sorted = sorted(assigned)
     return [PoleLayoutHz(f_poles_hz=tuple(assigned_sorted))]
+
+
+# ---------------------------------------------------------------------------
+# Legal-region reconstruction (Prompt 05 interface — read-only)
+# ---------------------------------------------------------------------------
+
+
+def compute_pole_legal_region(
+    cell_index: int,
+    f_pole_seed_hz: float,
+    pole_spec: PoleSpec,
+    f_targets_hz: np.ndarray,
+    n_cells: int,
+    prev_pole_hz: float,
+    next_pole_hz: float | None,
+) -> tuple[float, float]:
+    """Return the connected legal [f_lo, f_hi] containing ``f_pole_seed_hz``.
+
+    Used by Prompt 05 to reconstruct the continuous legal interval for each
+    cell's pole variable from the frozen 04B seed and PoleSpec.  Does not
+    modify any 04B mathematics.
+
+    Parameters
+    ----------
+    cell_index : int
+        Zero-based cell index within the branch.
+    f_pole_seed_hz : float
+        The seed pole frequency placed by 04B for this cell.
+    pole_spec : PoleSpec
+        The branch pole specification (internal dataclass form).
+    f_targets_hz : ndarray
+        Target frequencies in Hz.
+    n_cells : int
+        Total number of cells in this branch.
+    prev_pole_hz : float
+        Frequency of the previous (lower) pole, or ``-math.inf`` if none.
+    next_pole_hz : float | None
+        Frequency of the next (higher) pole, or ``None`` if none.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(f_lo, f_hi)`` of the connected legal interval.  Returns the
+        point ``(f_pole_seed_hz, f_pole_seed_hz)`` if no viable connected
+        interval could be reconstructed (pole treated as FIXED).
+    """
+    f_t = np.asarray(f_targets_hz, dtype=np.float64).ravel()
+    excl = pole_spec.delta_f_target_min_hz
+    sep = pole_spec.delta_f_pole_min_hz
+
+    if pole_spec.mode == PoleMode.FIXED:
+        # Fixed poles have no freedom.
+        return (f_pole_seed_hz, f_pole_seed_hz)
+
+    if pole_spec.mode == PoleMode.INTERVALS:
+        # One interval per cell, by index.
+        if pole_spec.intervals_hz is None or cell_index >= len(pole_spec.intervals_hz):
+            return (f_pole_seed_hz, f_pole_seed_hz)
+        lo, hi = pole_spec.intervals_hz[cell_index]
+        # Remove exclusion zones within the interval.
+        available = _subtract_exclusion_zones(lo, hi, f_t, excl)
+        # Find the sub-interval that contains the seed pole.
+        for sub_lo, sub_hi in available:
+            if sub_lo <= f_pole_seed_hz <= sub_hi:
+                # Clip for separation from neighbours.
+                clipped_lo = max(sub_lo, prev_pole_hz + sep)
+                clipped_hi = sub_hi
+                if next_pole_hz is not None:
+                    clipped_hi = min(clipped_hi, next_pole_hz - sep)
+                if clipped_lo <= clipped_hi and clipped_lo <= f_pole_seed_hz <= clipped_hi:
+                    return (clipped_lo, clipped_hi)
+        return (f_pole_seed_hz, f_pole_seed_hz)
+
+    # AUTO / SCHMIDT_SEED — derive from allowed band.
+    if pole_spec.allowed_band_hz is not None:
+        band_lo, band_hi = pole_spec.allowed_band_hz
+    else:
+        band_lo = 1.0
+        band_hi = 1e12
+
+    # The legal region for this cell is the entire allowed band, minus
+    # exclusion zones, clipped by neighbours for separation.
+    available = _subtract_exclusion_zones(band_lo, band_hi, f_t, excl)
+    for sub_lo, sub_hi in available:
+        if sub_lo <= f_pole_seed_hz <= sub_hi:
+            # Clip for separation from neighbouring poles.
+            clipped_lo = max(sub_lo, prev_pole_hz + sep)
+            clipped_hi = sub_hi
+            if next_pole_hz is not None:
+                clipped_hi = min(clipped_hi, next_pole_hz - sep)
+            if clipped_lo <= clipped_hi and clipped_lo <= f_pole_seed_hz <= clipped_hi:
+                return (clipped_lo, clipped_hi)
+
+    # Fallback: treat as fixed.
+    return (f_pole_seed_hz, f_pole_seed_hz)

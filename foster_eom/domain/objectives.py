@@ -80,6 +80,27 @@ class OptimizationSpec(BaseModel, frozen=True):
     stagnation_limit: int | None = Field(default=None, ge=1)
     checkpoint_every_evaluations: int = Field(default=5000, ge=100)
 
+    # ---- Prompt 05 additions (backward-compatible; all have defaults) ----
+
+    #: Maximum number of topology domains to send through DE.
+    max_optimization_domains: int = Field(default=20, ge=1)
+    #: SciPy DE mutation strategy string.
+    de_strategy: str = "best1bin"
+    #: Basin-deduplication radius in normalized [0,1]^n space (dim-normalized RMS).
+    basin_dedup_radius: float = Field(default=0.05, gt=0.0, le=1.0)
+    #: Hard-constraint feasibility tolerance (eps_feas).
+    feasibility_tolerance: float = Field(default=1e-6, gt=0.0)
+    #: Near-feasibility tolerance (eps_near), must be > feasibility_tolerance.
+    near_feasibility_tolerance: float = Field(default=0.05, gt=0.0)
+    #: Objective weight for reflection / match term J_gamma.
+    objective_weight_gamma: float = Field(default=1.0, ge=0.0)
+    #: Objective weight for EOM voltage tracking term J_voltage.
+    objective_weight_voltage: float = Field(default=1.0, ge=0.0)
+    #: Objective weight for parasitic loss term J_loss (0 = disabled by default).
+    objective_weight_loss: float = Field(default=0.0, ge=0.0)
+    #: Objective weight for topology complexity term J_complexity (constant within domain).
+    objective_weight_complexity: float = Field(default=0.0, ge=0.0)
+
 
 class TimeDomainPhaseMode(enum.StrEnum):
     """Phase assumption for time-domain reconstruction."""
