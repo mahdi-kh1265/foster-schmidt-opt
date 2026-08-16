@@ -16,7 +16,7 @@ from foster_eom.domain.constraints import (
     MatchConstraints,
     StressConstraints,
 )
-from foster_eom.domain.eom import EOMModelSpec, EOMModelType, MotionalBranch
+from foster_eom.domain.eom import EOMModelSpec, EOMModelType, ExtrapolationPolicy, MotionalBranch
 from foster_eom.domain.frequency_plan import ExclusionBand, FrequencyPlan, FrequencyTarget
 from foster_eom.domain.project import ProjectSpec
 from foster_eom.domain.results import CandidateResult
@@ -296,6 +296,15 @@ class TestEOMModelSpec:
             c0_f=12e-12,
         )
         assert eom.c0_f == pytest.approx(12e-12)
+        assert eom.extrapolation_policy == ExtrapolationPolicy.ERROR
+
+    def test_extrapolation_policy_custom(self) -> None:
+        eom = EOMModelSpec(
+            model_type=EOMModelType.IDEAL_CAPACITOR,
+            c0_f=12e-12,
+            extrapolation_policy=ExtrapolationPolicy.CLAMP,
+        )
+        assert eom.extrapolation_policy == ExtrapolationPolicy.CLAMP
 
     def test_ideal_capacitor_missing_c0(self) -> None:
         with pytest.raises(ValueError, match="c0_f"):

@@ -156,6 +156,7 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
     eom: dict[str, Any] = {
         "model_type": spec.eom.model_type.value,
         "name": spec.eom.name,
+        "extrapolation_policy": spec.eom.extrapolation_policy.value,
     }
     if spec.eom.validity_hz is not None:
         eom["validity_hz"] = list(spec.eom.validity_hz)
@@ -384,6 +385,7 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
         model_type=EOMModelType(eom_data.get("model_type", "ideal_capacitor")),
         name=eom_data.get("name", ""),
         validity_hz=tuple(validity) if validity else None,
+        extrapolation_policy=eom_data.get("extrapolation_policy", "error"),
         rs_ohm=series_data.get("Rs_ohm"),
         ls_h=series_data.get("Ls_H"),
         c0_f=static_data.get("C0_F"),

@@ -12,7 +12,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from foster_eom.domain.eom import EOMModelSpec, EOMModelType, MotionalBranch
+from foster_eom.domain.eom import EOMModelSpec, EOMModelType, ExtrapolationPolicy, MotionalBranch
 from foster_eom.domain.frequency_plan import FrequencyPlan, FrequencyTarget
 from foster_eom.domain.project import ProjectSpec
 from foster_eom.domain.provenance import (
@@ -385,6 +385,29 @@ class TestSourceRefImpedanceIndependence:
         assert loaded.source.z_source_real_ohm == pytest.approx(100.0)
         assert loaded.source.z_source_imag_ohm == pytest.approx(25.0)
         assert loaded.source.z_ref_ohm == pytest.approx(75.0)
+
+
+class TestExtrapolationPolicyRoundTrip:
+    """Verify extrapolation policy is preserved in YAML."""
+
+    def test_extrapolation_policy_preserved(self, tmp_path: Path) -> None:
+        spec = ProjectSpec(
+            source=SourceSpec(mode=SourceMode.THEVENIN, thevenin_vrms=5.0),
+            eom=EOMModelSpec(
+                model_type=EOMModelType.IDEAL_CAPACITOR,
+                c0_f=10e-12,
+                extrapolation_policy=ExtrapolationPolicy.WARN,
+            ),
+            frequencies=FrequencyPlan(
+                targets=[FrequencyTarget(frequency_hz=10e6)],
+                sweep_f_min_hz=5e6,
+                sweep_f_max_hz=15e6,
+            ),
+        )
+        path = tmp_path / "extrapolation.fseom.yaml"
+        save_project(spec, path)
+        loaded = load_project(path)
+        assert loaded.eom.extrapolation_policy == ExtrapolationPolicy.WARN
 
 
 class TestProvenanceCompleteness:

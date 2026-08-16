@@ -11,7 +11,6 @@ reconstruct the model at load time.
 from __future__ import annotations
 
 import enum
-from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,6 +23,15 @@ class EOMModelType(enum.StrEnum):
     MBVD = "mbvd"
     TABULAR = "tabular"
     RATIONAL = "rational"
+
+
+class ExtrapolationPolicy(enum.StrEnum):
+    """How to handle frequency queries outside the validity range."""
+
+    ERROR = "error"
+    WARN = "warn"
+    CLAMP = "clamp"
+    ALLOW = "allow"
 
 
 class MotionalBranch(BaseModel, frozen=True):
@@ -90,6 +98,7 @@ class EOMModelSpec(BaseModel, frozen=True):
     model_type: EOMModelType
     name: str = ""
     validity_hz: tuple[float, float] | None = None
+    extrapolation_policy: ExtrapolationPolicy = ExtrapolationPolicy.ERROR
 
     # Common capacitor fields
     c0_f: float | None = Field(default=None, gt=0.0)
@@ -105,9 +114,6 @@ class EOMModelSpec(BaseModel, frozen=True):
     # Tabular model reference
     data_file: str | None = None
     data_format: str | None = None
-
-    # Generic extra parameters for future model types
-    extra_params: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_type_fields(self) -> EOMModelSpec:
