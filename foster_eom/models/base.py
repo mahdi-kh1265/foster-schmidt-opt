@@ -24,6 +24,11 @@ class OnePortModel(ABC):
         self, extrapolation_policy: ExtrapolationPolicy = ExtrapolationPolicy.ERROR
     ) -> None:
         self.extrapolation_policy = extrapolation_policy
+        # Diagnostic-only flag: controls whether the WARN policy has already
+        # emitted its one-shot warning for this model instance.  This flag
+        # MUST NOT affect numerical output, hashing, serialization, or
+        # optimization reproducibility.  It is safe for single-threaded use;
+        # for parallel workers each process gets its own model copy.
         self._warned_extrapolation = False
 
     def z(self, f_hz: float | np.ndarray) -> complex | np.ndarray:
@@ -63,18 +68,25 @@ class OnePortModel(ABC):
     def _z_impl(self, f_hz: float | np.ndarray) -> complex | np.ndarray:
         """Protected implementation of impedance.
 
-        Subclasses must implement either this or _y_impl.
+        Subclasses must implement either this or ``_y_impl``.  If neither is
+        overridden, a ``NotImplementedError`` is raised at runtime to prevent
+        infinite mutual recursion between the two defaults.
         """
+        if type(self)._y_impl is OnePortModel._y_impl:
+            raise NotImplementedError(f"{type(self).__name__} must override _z_impl or _y_impl.")
         y_val = self._y_impl(f_hz)
-        # Avoid explicit divide-by-zero errors in numpy temporarily if expected
         with np.errstate(divide="ignore", invalid="ignore"):
             return 1.0 / y_val
 
     def _y_impl(self, f_hz: float | np.ndarray) -> complex | np.ndarray:
         """Protected implementation of admittance.
 
-        Subclasses must implement either this or _z_impl.
+        Subclasses must implement either this or ``_z_impl``.  If neither is
+        overridden, a ``NotImplementedError`` is raised at runtime to prevent
+        infinite mutual recursion between the two defaults.
         """
+        if type(self)._z_impl is OnePortModel._z_impl:
+            raise NotImplementedError(f"{type(self).__name__} must override _z_impl or _y_impl.")
         z_val = self._z_impl(f_hz)
         with np.errstate(divide="ignore", invalid="ignore"):
             return 1.0 / z_val
@@ -157,6 +169,15 @@ class OnePortModel(ABC):
             Covariance matrix, or None if unknown/inapplicable.
         """
         return None
+
+    def reset_warnings(self) -> None:
+        """Reset the warning suppression flag.
+
+        Call this to re-enable the one-shot WARN extrapolation warning,
+        for example at the start of a new optimization run or when the
+        model is reused in a different context.
+        """
+        self._warned_extrapolation = False
 
 
 class EOMModel(OnePortModel):

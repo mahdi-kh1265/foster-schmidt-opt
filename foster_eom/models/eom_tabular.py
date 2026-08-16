@@ -32,7 +32,11 @@ class TabularEOM(EOMModel):
             Complex impedances corresponding to f_hz. Must be 1-D, same length as
             f_hz.
         interpolation : str, default 'linear'
-            Interpolation method. 'linear' preserves passivity better than 'cubic'.
+            Interpolation method.  'linear' reduces interpolation overshoot
+            compared to 'cubic' but does **not** guarantee global passivity
+            or causality of the interpolated impedance.  Rational fitting
+            with passivity enforcement (spec §7.5) is the correct
+            high-fidelity solution and will be available in a later milestone.
         extrapolation_policy : ExtrapolationPolicy, default ERROR
             Policy for handling frequencies outside the data range.
 
@@ -69,8 +73,13 @@ class TabularEOM(EOMModel):
         self._validity_hz = (float(f_arr[0]), float(f_arr[-1]))
 
         # We interpolate real and imaginary parts independently.
-        # Scipy interp1d accepts complex arrays and handles them component-wise.
-        # Note: Cubic interpolation is not inherently passivity preserving.
+        # scipy interp1d accepts complex arrays and handles them component-wise.
+        #
+        # NOTE: Neither linear nor cubic interpolation of Re(Z)/Im(Z)
+        # guarantees passivity (Re(Z) >= 0) or causality of the
+        # interpolated function.  Linear reduces spline overshoot but
+        # is not a substitute for rational/passivity-enforced modeling
+        # (spec §7.5), which is a later milestone.
         self._interp = interp1d(
             self.f_hz,
             self.z_complex,

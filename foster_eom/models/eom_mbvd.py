@@ -75,13 +75,13 @@ class MBVDModel(EOMModel):
         y_core = self.g0_s + 1j * omega * self.c0_f
 
         for branch in self.motional_branches:
-            # Prevent divide by zero at DC for the motional capacitor
             with np.errstate(divide="ignore", invalid="ignore"):
                 z_m = branch.rm_ohm + 1j * omega * branch.lm_h + 1.0 / (1j * omega * branch.cm_f)
-                if np.isscalar(z_m) and z_m == 0j:
-                    y_core += complex(np.inf, np.inf)
-                else:
-                    y_core += 1.0 / z_m
+                # Use np.where / np.divide to handle z_m == 0 for both scalar
+                # and array paths without raising ZeroDivisionError.
+                z_m_arr = np.asarray(z_m, dtype=np.complex128)
+                y_m = np.where(z_m_arr == 0j, np.complex128(np.inf), 1.0 / z_m_arr)
+                y_core = y_core + y_m
 
         z_series = self.rs_ohm + 1j * omega * self.ls_h
 
