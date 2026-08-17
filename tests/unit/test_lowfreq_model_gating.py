@@ -7,6 +7,7 @@ correct fallback tier is selected.
 These tests are UNIT tests that do not require the real vendor DB.
 They mock ModelCondition objects with explicit validity ranges.
 """
+
 from __future__ import annotations
 
 from foster_eom.catalog.component import FallbackPolicy, ModelTier
@@ -87,9 +88,9 @@ class TestLowFreqModelGating:
         assert result is not None
         assert result.model_tier == ModelTier.IDEAL
 
-    def test_measured_plus_ideal_selects_ideal_not_measured(self) -> None:
-        """When measured is out-of-band and ideal is available, ideal is selected
-        (not the measured model, even though measured is higher tier)."""
+    def test_strict_measured_plus_ideal_returns_none(self) -> None:
+        """STRICT: When measured is out-of-band and ideal is available, it does NOT
+        silently downgrade to ideal. It marks the part ineligible (returns None)."""
         from foster_eom.realization.neighborhoods import _select_best_mc
 
         murata_measured = _make_mc(
@@ -99,9 +100,33 @@ class TestLowFreqModelGating:
             mc_id="measured_oob",
         )
         ideal_mc = _make_mc(tier="ideal", mc_id="ideal_fb")
-        slot = _slot(self.EOM_BAND)
+        slot = _slot(self.EOM_BAND)  # STRICT by default
         result = _select_best_mc([murata_measured, ideal_mc], slot)
-        assert result is not None, "Ideal fallback must be selected when measured is out-of-band"
+        assert result is None, "STRICT must reject part if highest tier model is out of band"
+
+    def test_allow_lower_tier_measured_plus_ideal_selects_ideal(self) -> None:
+        """ALLOW_LOWER_TIER: When measured is out-of-band and ideal is available,
+        it explicitly permits fallback to ideal."""
+        from foster_eom.realization.neighborhoods import _select_best_mc
+
+        murata_measured = _make_mc(
+            tier="measured",
+            validity_lo=100e6,
+            validity_hi=30e9,
+            mc_id="measured_oob",
+        )
+        ideal_mc = _make_mc(tier="ideal", mc_id="ideal_fb")
+        slot = SlotSpec(
+            element_id="b1_C1",
+            value_nom=10e-12,
+            freq_range_hz=self.EOM_BAND,
+            fallback_policy=FallbackPolicy.ALLOW_LOWER_TIER,
+        )
+
+        result = _select_best_mc([murata_measured, ideal_mc], slot)
+        assert result is not None, (
+            "ALLOW_LOWER_TIER must fallback to ideal when measured is out-of-band"
+        )
         assert result.id == "ideal_fb"
         assert result.model_tier == ModelTier.IDEAL
 

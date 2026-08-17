@@ -244,7 +244,7 @@ def _select_best_mc(
       when a *valid* higher-tier model was already found).
     - If required_tier is set and no condition meets it, return None.
     """
-    from foster_eom.catalog.component import tier_rank
+    from foster_eom.catalog.component import FallbackPolicy, tier_rank
 
     # Sort by tier rank descending (highest first)
     sorted_mc = sorted(conditions, key=lambda mc: tier_rank(mc.model_tier), reverse=True)
@@ -260,17 +260,24 @@ def _select_best_mc(
         vr = mc.validity_hz()
 
         # Check frequency coverage:
-        # - vr is None: model has no stored validity range → treat as unlimited
-        #   (correct for IDEAL models; accept it)
+        # - vr is None: model has no stored validity range (ideal mathematical model
+        #   has no numerical frequency boundary) → accept it
         # - vr is (lo, hi): must fully cover slot.freq_range_hz
         if slot.freq_range_hz is not None and vr is not None:
             lo, hi = slot.freq_range_hz
             if vr[0] <= lo and vr[1] >= hi:
                 return mc  # covers the band — accept
-            # Does not cover — try lower tier
+
+            # Does not cover. Check fallback policy.
+            if slot.fallback_policy == FallbackPolicy.STRICT:
+                # STRICT: if a higher-tier available model does not cover the band,
+                # do not silently downgrade. Mark ineligible.
+                return None
+
+            # ALLOW_LOWER_TIER: try the next (lower) tier
             continue
 
-        # No freq filter, or unlimited validity → accept this condition
+        # No freq filter, or no numerical frequency boundary → accept this condition
         return mc
 
     return None
