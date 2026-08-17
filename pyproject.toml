@@ -30,6 +30,9 @@ test = [
     "pytest>=7.4",
     "hypothesis>=6.80",
 ]
+gui-test = [
+    "pytest-qt>=4.3",
+]
 dev = [
     "ruff>=0.4",
     "mypy>=1.8",
