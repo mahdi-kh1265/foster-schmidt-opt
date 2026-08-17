@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import yaml
 
 from foster_eom.domain.component import ComponentPolicy, ContinuousLimits
@@ -759,3 +760,195 @@ def load_results(path: str | Path) -> OptimizationResult:
         de_diagnostics=de_diag,
         run_manifest=manifest,
     )
+
+
+# ---------------------------------------------------------------------------
+# Prompt 07: Measured characterization persistence (additive, backward-compatible)
+# ---------------------------------------------------------------------------
+
+
+def save_measured_characterization(
+    dataset: Any,
+    fit_results: list[Any] | None = None,
+    path: str | Path = "",
+) -> dict[str, Any]:
+    """Serialize a MeasuredDataset and optional FitResults to a YAML-safe dict.
+
+    The returned dict is stored under ``"measured_characterization"`` key.
+    Pre-P07 schemas that lack this key are unaffected (backward-compatible).
+
+    Parameters
+    ----------
+    dataset : MeasuredDataset
+    fit_results : list[FitResult] | None
+    path : str | Path
+        If non-empty, writes directly to this file.
+
+    Returns
+    -------
+    dict
+        YAML-safe dictionary.
+    """
+    import base64
+
+    def _ndarray_to_b64(arr: np.ndarray) -> dict[str, Any]:
+        a = np.asarray(arr)
+        return {
+            "__ndarray__": True,
+            "dtype": str(a.dtype),
+            "shape": list(a.shape),
+            "data": base64.b64encode(a.tobytes()).decode("ascii"),
+        }
+
+    mc: dict[str, Any] = {
+        "schema_version": "p07.1",
+        "source_file": dataset.source_file,
+        "source_sha256": dataset.source_sha256,
+        "source_format": dataset.source_format,
+        "source_quantity": str(dataset.source_quantity),
+        "z_ref_ohm": dataset.z_ref_ohm,
+        "instrument": dataset.instrument,
+        "measurement_plane": dataset.measurement_plane,
+        "notes": dataset.notes,
+        "f_hz": _ndarray_to_b64(dataset.f_hz),
+        "s11_re": _ndarray_to_b64(dataset.s11_complex.real),
+        "s11_im": _ndarray_to_b64(dataset.s11_complex.imag),
+        "validity_hz": list(dataset.validity_hz),
+        "passivity_flags": list(dataset.passivity_flags),
+    }
+
+    if fit_results:
+        fits: list[dict[str, Any]] = []
+        for fr in fit_results:
+            meta = fr.model.metadata()
+            fit_dict: dict[str, Any] = {
+                "schema_version": fr.schema_version,
+                "model_type": fr.model_type,
+                "fit_domain": str(fr.fit_domain),
+                "parameters": {
+                    k: v for k, v in meta.items() if k not in ("model_type", "validity_hz")
+                },
+                "diagnostics": {
+                    "rms_error": fr.diagnostics.rms_error,
+                    "max_error": fr.diagnostics.max_error,
+                    "rms_error_ohm": fr.diagnostics.rms_error_ohm,
+                    "max_error_ohm": fr.diagnostics.max_error_ohm,
+                    "converged": fr.diagnostics.converged,
+                    "message": fr.diagnostics.message,
+                    "n_function_evals": fr.diagnostics.n_function_evals,
+                    "jacobian_rank": fr.diagnostics.jacobian_rank,
+                    "condition_number": fr.diagnostics.condition_number,
+                    "covariance_reason": fr.diagnostics.covariance_reason,
+                },
+            }
+            fits.append(fit_dict)
+        mc["fit_results"] = fits
+
+    if path:
+        p = Path(path)
+        with p.open("w", encoding="utf-8") as f:
+            yaml.dump(
+                {"measured_characterization": mc},
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+
+    return mc
+
+
+def load_measured_characterization(
+    path: str | Path,
+) -> dict[str, Any] | None:
+    """Load a measured_characterization block from a YAML file.
+
+    Returns None if the key is absent (backward-compatible with pre-P07 schemas).
+    """
+    p = Path(path)
+    with p.open("r", encoding="utf-8") as f:
+        data: dict[str, Any] = yaml.safe_load(f)
+    result: dict[str, Any] | None = data.get("measured_characterization")
+    return result
+
+
+def reconstruct_measured_dataset(mc: dict[str, Any]) -> Any:
+    """Reconstruct a MeasuredDataset from a serialized dict."""
+    import base64
+
+    from foster_eom.measurement.dataset import MeasuredDataset, SourceQuantity
+
+    def _b64_to_ndarray(d: dict[str, Any]) -> np.ndarray:
+        raw = base64.b64decode(d["data"])
+        return np.frombuffer(raw, dtype=np.dtype(d["dtype"])).reshape(d["shape"]).copy()
+
+    f_hz = _b64_to_ndarray(mc["f_hz"])
+    s11_re = _b64_to_ndarray(mc["s11_re"])
+    s11_im = _b64_to_ndarray(mc["s11_im"])
+    s11 = s11_re + 1j * s11_im
+    z_ref = mc.get("z_ref_ohm", 50.0)
+    source_q = SourceQuantity(mc["source_quantity"])
+
+    if source_q == SourceQuantity.Z:
+        z_derived = z_ref * (1.0 + s11) / (1.0 - s11)
+        return MeasuredDataset.from_z(
+            f_hz=f_hz,
+            z=z_derived,
+            z_ref_ohm=z_ref,
+            source_file=mc.get("source_file"),
+            source_sha256=mc.get("source_sha256"),
+            source_format=mc.get("source_format", "unknown"),
+            instrument=mc.get("instrument", ""),
+            measurement_plane=mc.get("measurement_plane", ""),
+            notes=mc.get("notes", ""),
+        )
+    else:
+        return MeasuredDataset.from_s11(
+            f_hz=f_hz,
+            s11=s11,
+            z_ref_ohm=z_ref,
+            source_file=mc.get("source_file"),
+            source_sha256=mc.get("source_sha256"),
+            source_format=mc.get("source_format", "unknown"),
+            instrument=mc.get("instrument", ""),
+            measurement_plane=mc.get("measurement_plane", ""),
+            notes=mc.get("notes", ""),
+        )
+
+
+def reconstruct_fit_model(
+    fit_dict: dict[str, Any], validity_hz: tuple[float, float] | None = None
+) -> Any:
+    """Reconstruct an analytic model from serialized fit parameters.
+
+    Reads ``model_type`` + ``parameters`` and calls the appropriate constructor.
+    No raw Python objects are deserialized.
+    """
+    model_type = fit_dict["model_type"]
+    params = fit_dict["parameters"]
+
+    if model_type == "lossy_cap":
+        from foster_eom.models.eom_lossy import LossyCapacitorEOM
+
+        return LossyCapacitorEOM(
+            c0_f=params["c0_f"],
+            rs_ohm=params.get("rs_ohm", 0.0),
+            ls_h=params.get("ls_h", 0.0),
+            g0_s=params.get("g0_s", 0.0),
+            validity_hz=validity_hz,
+        )
+    elif model_type == "mbvd":
+        from foster_eom.domain.eom import MotionalBranch
+        from foster_eom.models.eom_mbvd import MBVDModel
+
+        branches = [MotionalBranch(**b) for b in params.get("motional_branches", [])]
+        return MBVDModel(
+            c0_f=params["c0_f"],
+            g0_s=params.get("g0_s", 0.0),
+            rs_ohm=params.get("rs_ohm", 0.0),
+            ls_h=params.get("ls_h", 0.0),
+            motional_branches=branches,
+            validity_hz=validity_hz,
+        )
+    else:
+        raise ValueError(f"Unknown model_type '{model_type}' in fit_results.")

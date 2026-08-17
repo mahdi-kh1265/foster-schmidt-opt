@@ -1,5 +1,6 @@
 """EOM and component models."""
 
+from foster_eom.measurement.measured_model import MeasuredOnePortModel
 from foster_eom.models.base import EOMModel, OnePortModel
 from foster_eom.models.components import (
     IdealCapacitor,
@@ -27,6 +28,7 @@ __all__ = [
     "LumpedLossyCapacitor",
     "LumpedLossyInductor",
     "MBVDModel",
+    "MeasuredOnePortModel",
     "MultiPortModel",
     "OnePortModel",
     "TabularEOM",

@@ -23,6 +23,7 @@ class EOMModelType(enum.StrEnum):
     MBVD = "mbvd"
     TABULAR = "tabular"
     RATIONAL = "rational"
+    MEASURED = "measured"
 
 
 class ExtrapolationPolicy(enum.StrEnum):

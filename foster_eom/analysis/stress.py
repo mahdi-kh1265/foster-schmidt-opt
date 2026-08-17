@@ -268,7 +268,9 @@ def compute_stress(
             )
         )
 
-    from typing import Callable, Any
+    from collections.abc import Callable
+    from typing import Any
+
     def _worst_eid(key_fn: Callable[[Any], Any]) -> str | None:
         if not element_results:
             return None
