@@ -3,6 +3,7 @@
 Wilson CI is only computed for iid random sampling (method="random").
 LHS and Sobol produce ci_method=None.
 """
+
 from __future__ import annotations
 
 import math
@@ -173,9 +174,7 @@ def compute_yield_stats(
     # yield_p06 only when all samples had P06 run
     yield_p06: float | None = None
     if p06_all_run and n > 0:
-        n_p06_pass = sum(
-            1 for s in samples if s.verify_passed is True
-        )
+        n_p06_pass = sum(1 for s in samples if s.verify_passed is True)
         yield_p06 = n_p06_pass / n
 
     # Hard-constraint failure frequency
@@ -230,8 +229,7 @@ def compute_distributions(
     from foster_eom.robustness.evaluator import SampleOutcome
 
     evaluable = [
-        s for s in samples
-        if s.outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL)
+        s for s in samples if s.outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL)
     ]
 
     obj_vals = [s.objective_value for s in evaluable if s.objective_value is not None]

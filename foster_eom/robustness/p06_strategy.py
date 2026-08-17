@@ -4,6 +4,7 @@ Runs P06 adaptive sweep on a targeted subset of samples.
 This is a diagnostic tool — NOT a population yield estimator.
 yield_p06 is only set when p06_diagnostic="all".
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -42,20 +43,18 @@ def run_p06_diagnostic(
     if spec.p06_diagnostic == "worst_k":
         # Select k worst-objective PHYSICAL_FAIL + PASS samples (highest objective)
         candidates = [
-            s for s in samples
+            s
+            for s in samples
             if s.outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL)
             and s.objective_value is not None
         ]
-        candidates_sorted = sorted(
-            candidates, key=lambda s: s.objective_value or 0.0, reverse=True
-        )
+        candidates_sorted = sorted(candidates, key=lambda s: s.objective_value or 0.0, reverse=True)
         target = candidates_sorted[: spec.p06_worst_k]
         label = f"worst_{len(target)}_by_objective"
 
     elif spec.p06_diagnostic == "all":
         target = [
-            s for s in samples
-            if s.outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL)
+            s for s in samples if s.outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL)
         ]
         label = f"all_{len(target)}_evaluable"
 
@@ -122,9 +121,7 @@ def _run_one_p06(
         sample.verify_report = {"error": f"graph substitution: {exc}"}
         return
 
-    target_hz = tuple(
-        context.evaluation_frequencies_hz[i] for i in context.target_indices
-    )
+    target_hz = tuple(context.evaluation_frequencies_hz[i] for i in context.target_indices)
     if context.p06_sweep_band_hz is not None:
         f_min, f_max = context.p06_sweep_band_hz
         sweep_spec = SweepSpec(f_min_hz=f_min, f_max_hz=f_max)

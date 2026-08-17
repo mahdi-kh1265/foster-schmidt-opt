@@ -1,8 +1,9 @@
 """P10 sampling engine.
 
-Generates the N × D draw matrix for Monte Carlo robustness analysis.
+Generates the N x D draw matrix for Monte Carlo robustness analysis.
 Supports iid random (Wilson CI valid), LHS, and Sobol (no Wilson CI).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -91,7 +92,7 @@ def draw_samples(
     slot_uncertainties: list[SlotUncertainty],
     spec: RobustnessSpec,
 ) -> DrawMatrix:
-    """Generate the N × D uniform draw matrix.
+    """Generate the N x D uniform draw matrix.
 
     Returns quantile-space samples u ∈ [0,1]^D for stochastic slots only.
     Call ``inverse_transform`` to convert to physical value draws.
@@ -222,7 +223,7 @@ def _draw_combined_delta(u: float, terms: tuple[UncertaintyTerm, ...]) -> float:
     if normal_sigma_total > 1e-15:
         from scipy.stats import norm
 
-        # Clip to ±3σ bounds
+        # Clip to +/- 3 sigma bounds
         u_clipped = float(np.clip(u, 1e-4, 1.0 - 1e-4))
         delta += norm.ppf(u_clipped) * normal_sigma_total
 

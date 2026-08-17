@@ -4,6 +4,7 @@ OAT: one-at-a-time central-difference sensitivity around nominal.
 Failure association: heuristic identification of which slot's draw is most
 extreme in PHYSICAL_FAIL samples (not causal attribution).
 """
+
 from __future__ import annotations
 
 import math
@@ -122,11 +123,23 @@ def run_oat_sensitivity(
         base_overrides = _nominal_overrides(su.element_id)
 
         j_lo = _eval_perturbed(
-            su, combo, library, freq_range, base_graph, context, base_overrides,
+            su,
+            combo,
+            library,
+            freq_range,
+            base_graph,
+            context,
+            base_overrides,
             draw_frac=-h,
         )
         j_hi = _eval_perturbed(
-            su, combo, library, freq_range, base_graph, context, base_overrides,
+            su,
+            combo,
+            library,
+            freq_range,
+            base_graph,
+            context,
+            base_overrides,
             draw_frac=+h,
         )
         vmax_lo = _eval_vmax(

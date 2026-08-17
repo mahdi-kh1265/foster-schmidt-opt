@@ -17,6 +17,7 @@ Scenario:
 
   This proves P10 adds information not available from nominal P09 alone.
 """
+
 from __future__ import annotations
 
 import math
@@ -137,7 +138,7 @@ def _build_synthetic_combo(lib, l_cid: str, c_cid: str) -> object:
         model_condition_id="mc_l",
         vendor="SynVendor",
         part_number="L_TEST",
-        value_nom=100e-9,   # 100 nH to match parallel RLC circuit
+        value_nom=100e-9,  # 100 nH to match parallel RLC circuit
         value_tol_frac=0.10,
         model_tier=ModelTier.IDEAL,
         log_ratio=0.0,
@@ -164,7 +165,6 @@ def _build_synthetic_combo(lib, l_cid: str, c_cid: str) -> object:
         deb_key=(False, 0.0, 0.0, 0.05),
         verify_passed=True,
     )
-
 
 
 def _build_synthetic_context_and_graph(tmp_path: Path):
@@ -209,12 +209,19 @@ def _build_synthetic_context_and_graph(tmp_path: Path):
     )
     graph.add_node(Node(id="n_in", is_ground=False))
     graph.add_node(Node(id="gnd", is_ground=True))
-    graph.add_element(Element(id="b1_L1", kind=ElementKind.INDUCTOR,
-                              node_pos="n_in", node_neg="gnd", value=L_nom))
-    graph.add_element(Element(id="b1_C1", kind=ElementKind.CAPACITOR,
-                              node_pos="n_in", node_neg="gnd", value=C_nom))
-    graph.add_element(Element(id="R_load", kind=ElementKind.RESISTOR,
-                              node_pos="n_in", node_neg="gnd", value=R_load))
+    graph.add_element(
+        Element(id="b1_L1", kind=ElementKind.INDUCTOR, node_pos="n_in", node_neg="gnd", value=L_nom)
+    )
+    graph.add_element(
+        Element(
+            id="b1_C1", kind=ElementKind.CAPACITOR, node_pos="n_in", node_neg="gnd", value=C_nom
+        )
+    )
+    graph.add_element(
+        Element(
+            id="R_load", kind=ElementKind.RESISTOR, node_pos="n_in", node_neg="gnd", value=R_load
+        )
+    )
 
     z_ref = 50.0
 
@@ -321,9 +328,7 @@ def _build_synthetic_context_and_graph(tmp_path: Path):
 class TestP10EndToEnd:
     """End-to-end P10 robustness test with synthetic circuit."""
 
-    def test_nominal_passes_tolerance_spreads_produce_hard_failures(
-        self, tmp_path: Path
-    ) -> None:
+    def test_nominal_passes_tolerance_spreads_produce_hard_failures(self, tmp_path: Path) -> None:
         """Core P10 value proposition test.
 
         The nominal P09 combo is feasible.
@@ -418,7 +423,7 @@ class TestP10EndToEnd:
 
         # Same draws → same outcomes
         assert len(result.samples) == len(result2.samples)
-        for s1, s2 in zip(result.samples, result2.samples):
+        for s1, s2 in zip(result.samples, result2.samples, strict=True):
             for eid in s1.draw:
                 assert s1.draw[eid] == pytest.approx(s2.draw.get(eid, float("nan")), rel=1e-10)
 

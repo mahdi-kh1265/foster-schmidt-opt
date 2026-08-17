@@ -2,7 +2,7 @@
 
 Workflow:
   1. build_slot_uncertainties() from frozen P09 CatalogCombo.
-  2. draw_samples() → N × D uniform matrix.
+  2. draw_samples() → N x D uniform matrix.
   3. inverse_transform_draw() per sample → physical values.
   4. evaluate_sample() for each sample → SampleResult with 4-state outcome.
   5. run_p06_diagnostic() on targeted samples.
@@ -10,6 +10,7 @@ Workflow:
   7. run_oat_sensitivity() + compute_failure_association().
   8. Assemble RobustnessResult.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -93,9 +94,7 @@ def run_robustness(
             )
 
     # Nominal values from combo entries
-    nominal_values = {
-        eid: entry.value_nom for eid, entry in combo.slot_entries.items()
-    }
+    nominal_values = {eid: entry.value_nom for eid, entry in combo.slot_entries.items()}
 
     # 2. Draw sample matrix
     draw_matrix = draw_samples(slot_uncertainties, spec)
@@ -103,10 +102,8 @@ def run_robustness(
     # 3 + 4. Evaluate each sample
     samples = []
     for i in range(spec.n_samples):
-        if draw_matrix.u.shape[1] > 0:
-            u_row = draw_matrix.u[i]
-        else:
-            u_row = []  # type: ignore[assignment]
+        import numpy as np
+        u_row = draw_matrix.u[i] if draw_matrix.u.shape[1] > 0 else np.array([])
 
         draw = inverse_transform_draw(u_row, slot_uncertainties, nominal_values)
         sample = evaluate_sample(

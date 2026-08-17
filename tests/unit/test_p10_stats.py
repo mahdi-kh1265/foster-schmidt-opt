@@ -1,4 +1,5 @@
 """Unit tests for P10 statistics module."""
+
 from __future__ import annotations
 
 import math
@@ -19,16 +20,20 @@ from foster_eom.robustness.stats import (
 # ---------------------------------------------------------------------------
 
 
-def _sample(outcome: SampleOutcome, obj: float | None = None, v_max: float | None = None,
-            hard_margins: tuple[float, ...] | None = None) -> SampleResult:
+def _sample(
+    outcome: SampleOutcome,
+    obj: float | None = None,
+    v_max: float | None = None,
+    hard_margins: tuple[float, ...] | None = None,
+) -> SampleResult:
     from unittest.mock import MagicMock
 
     eval_result = None
     if outcome in (SampleOutcome.PASS, SampleOutcome.PHYSICAL_FAIL):
         eval_result = MagicMock()
         eval_result.objective_value = obj if obj is not None else 0.5
-        eval_result.v_max = v_max if v_max is not None else (
-            0.0 if outcome == SampleOutcome.PASS else 0.5
+        eval_result.v_max = (
+            v_max if v_max is not None else (0.0 if outcome == SampleOutcome.PASS else 0.5)
         )
         eval_result.v_sum = eval_result.v_max
         eval_result.hard_margins = hard_margins if hard_margins is not None else (0.1,)
@@ -148,12 +153,8 @@ class TestComputeYieldStats:
     def test_hard_constraint_failure_freq(self) -> None:
         # 5 PHYSICAL_FAIL samples; constraint 0 violated in all 5, constraint 1 in 2
         samples = [
-            _sample(SampleOutcome.PHYSICAL_FAIL, hard_margins=(-0.1, -0.2))
-            for _ in range(3)
-        ] + [
-            _sample(SampleOutcome.PHYSICAL_FAIL, hard_margins=(-0.1, 0.1))
-            for _ in range(2)
-        ]
+            _sample(SampleOutcome.PHYSICAL_FAIL, hard_margins=(-0.1, -0.2)) for _ in range(3)
+        ] + [_sample(SampleOutcome.PHYSICAL_FAIL, hard_margins=(-0.1, 0.1)) for _ in range(2)]
         spec = RobustnessSpec()
         ys = compute_yield_stats(samples, spec)
         assert "hard_0" in ys.hard_constraint_failure_freq
@@ -169,6 +170,7 @@ class TestComputeYieldStats:
 class TestQuantileReport:
     def test_monotone_order(self) -> None:
         import random
+
         rng = random.Random(0)
         vals = [rng.uniform(0, 1) for _ in range(500)]
         r = QuantileReport.from_array(vals, "test")

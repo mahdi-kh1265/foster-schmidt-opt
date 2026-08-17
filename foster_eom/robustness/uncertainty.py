@@ -5,6 +5,7 @@ Multiple additive UncertaintyTerm records may exist per slot.
 Manufacturing tolerance source identity is preserved independently
 of which perturbation method represents it in the circuit.
 """
+
 from __future__ import annotations
 
 import enum
@@ -81,7 +82,7 @@ class UncertaintyTerm:
         Upper bound fraction (≥ 0).  Set together with lo_frac.
     distribution : str
         "uniform" — draw uniformly in [lo, hi].
-        "normal_3sigma" — draw from N(0, σ=tol_frac/3), clipped at ±3σ.
+        "normal_3sigma" — draw from N(0, sigma=tol_frac/3), clipped at +/- 3 sigma.
     """
 
     source: UncertaintySource

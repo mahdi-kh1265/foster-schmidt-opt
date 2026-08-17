@@ -1,4 +1,5 @@
 """Unit tests for P10 sampler."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -55,7 +56,7 @@ class TestDrawSamples:
         sus = [_make_su("b1_L1", 0.05)]
         spec = RobustnessSpec(n_samples=500, seed=7, method="random")
         dm = draw_samples(sus, spec)
-        stat, p = kstest(dm.u[:, 0], "uniform")
+        _stat, p = kstest(dm.u[:, 0], "uniform")
         assert p > 0.05, f"KS p={p:.4f} too small; draws not uniform"
 
     def test_lhs_shape(self) -> None:
@@ -106,7 +107,7 @@ class TestInverseTransform:
             assert draw["b1_C1"] == pytest.approx(10e-12)
 
     def test_normal_3sigma_mostly_within_bounds(self) -> None:
-        """99.7% of normal_3sigma draws should be within ±3σ = ±tol."""
+        """99.7% of normal_3sigma draws should be within +/- 3 sigma = +/- tol."""
         from foster_eom.robustness.uncertainty import UncertaintySource, UncertaintyTerm
 
         t = UncertaintyTerm(
@@ -129,9 +130,9 @@ class TestInverseTransform:
             draw = inverse_transform_draw(dm.u[i], [su], nom)
             v = draw["b1_L1"]
             delta = abs(v / 10e-9 - 1.0)
-            # Soft clip at u ∈ [1e-4, 1-1e-4] means draws are within ~3.72σ max
-            # Use generous boundary (3.72σ ≈ 1.12 * 3σ) to account for clip point
-            if delta > 0.09 * 1.25:  # ~3.7σ for σ=tol/3=0.03
+            # Soft clip at u in [1e-4, 1-1e-4] means draws are within ~3.72 sigma max
+            # Use generous boundary (3.72 sigma ~= 1.12 * 3 sigma) to account for clip point
+            if delta > 0.09 * 1.25:  # ~3.7 sigma for sigma=tol/3=0.03
                 outside += 1
         # Effectively no draws should be far outside (clipping is tight)
         assert outside == 0, f"{outside} draws outside soft-clip boundary"

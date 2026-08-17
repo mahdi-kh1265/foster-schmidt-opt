@@ -7,6 +7,7 @@ the outcome into one of four states:
 Numerical failures are retried before being marked NUMERICAL_UNRESOLVED.
 They are NOT silently excluded from yield statistics.
 """
+
 from __future__ import annotations
 
 import enum
@@ -297,9 +298,7 @@ def evaluate_sample(
             else:
                 perturb_methods[element_id] = su.perturb_method.value
                 try:
-                    model = _build_perturbed_model(
-                        element_id, draw, combo, su, library, freq_range
-                    )
+                    model = _build_perturbed_model(element_id, draw, combo, su, library, freq_range)
                     overrides[element_id] = model
                 except ModelCoverageError as exc:
                     return f"coverage: {exc}"

@@ -1,4 +1,5 @@
 """Unit tests for P10 uncertainty model."""
+
 from __future__ import annotations
 
 import warnings
