@@ -103,6 +103,7 @@ def run_robustness(
     samples = []
     for i in range(spec.n_samples):
         import numpy as np
+
         u_row = draw_matrix.u[i] if draw_matrix.u.shape[1] > 0 else np.array([])
 
         draw = inverse_transform_draw(u_row, slot_uncertainties, nominal_values)

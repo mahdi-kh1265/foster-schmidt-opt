@@ -188,4 +188,3 @@ class SpiceValidationReport:
     unsupported_model_reasons: dict[str, str]
     fail_reason: str | None
     thresholds: ValidationThresholds
-

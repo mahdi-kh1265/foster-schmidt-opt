@@ -153,21 +153,17 @@ def validate_against_mna(
     i_sense_spice = _scale_sense("Vsense")
 
     # MNA Z_in and I_port (source-droop current)
-    mna_z_in = np.array([
-        sol.z_in if sol.z_in is not None else complex("nan")
-        for sol in mna_solutions
-    ])
-    mna_i_port = np.array([
-        sol.i_port if sol.i_port is not None else complex("nan")
-        for sol in mna_solutions
-    ])
+    mna_z_in = np.array(
+        [sol.z_in if sol.z_in is not None else complex("nan") for sol in mna_solutions]
+    )
+    mna_i_port = np.array(
+        [sol.i_port if sol.i_port is not None else complex("nan") for sol in mna_solutions]
+    )
 
     if v_dut_spice is not None and i_sense_spice is not None:
         # Z_in
         with np.errstate(divide="ignore", invalid="ignore"):
-            spice_z_in = np.where(
-                i_sense_spice != 0, v_dut_spice / i_sense_spice, complex("nan")
-            )
+            spice_z_in = np.where(i_sense_spice != 0, v_dut_spice / i_sense_spice, complex("nan"))
         comparisons.append(
             compute_quantity_comparison(
                 "Z_in", frequencies_hz, mna_z_in, spice_z_in, thr, compute_resonance=True
@@ -175,9 +171,7 @@ def validate_against_mna(
         )
         # I_port (current into DUT)
         comparisons.append(
-            compute_quantity_comparison(
-                "I_port", frequencies_hz, mna_i_port, i_sense_spice, thr
-            )
+            compute_quantity_comparison("I_port", frequencies_hz, mna_i_port, i_sense_spice, thr)
         )
 
     # V_eom
@@ -191,11 +185,14 @@ def validate_against_mna(
         if v_ep is not None:
             v_en = (v_en_arr * vth) if v_en_arr is not None else np.zeros_like(v_ep)
             spice_v_eom = v_ep - v_en
-            mna_v_eom = np.array([
-                sol.v_eom if (hasattr(sol, "v_eom") and sol.v_eom is not None)  # type: ignore[attr-defined]
-                else complex("nan")
-                for sol in mna_solutions
-            ])
+            mna_v_eom = np.array(
+                [
+                    sol.v_eom
+                    if (hasattr(sol, "v_eom") and sol.v_eom is not None)  # type: ignore[attr-defined]
+                    else complex("nan")
+                    for sol in mna_solutions
+                ]
+            )
             comparisons.append(
                 compute_quantity_comparison("V_eom", frequencies_hz, mna_v_eom, spice_v_eom, thr)
             )
@@ -208,14 +205,16 @@ def validate_against_mna(
         spice_i = _scale_sense(sense_name)
         if spice_i is None:
             continue
-        mna_i = np.array([
-            (
-                sol.element_measurements[eid].current  # type: ignore[index]
-                if (sol.element_measurements and eid in sol.element_measurements)
-                else complex("nan")
-            )
-            for sol in mna_solutions
-        ])
+        mna_i = np.array(
+            [
+                (
+                    sol.element_measurements[eid].current  # type: ignore[index]
+                    if (sol.element_measurements and eid in sol.element_measurements)
+                    else complex("nan")
+                )
+                for sol in mna_solutions
+            ]
+        )
         comparisons.append(
             compute_quantity_comparison(f"branch_I_{eid}", frequencies_hz, mna_i, spice_i, thr)
         )
@@ -223,4 +222,3 @@ def validate_against_mna(
     # -- Step 6: classify ----------------------------------------------------
     status, fail_reason = classify_status(comparisons, thr)
     return _base_report(status, solver_version, comparisons, fail_reason)
-

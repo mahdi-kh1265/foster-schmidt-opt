@@ -117,10 +117,7 @@ def _detect_grid(frequencies_hz: Sequence[float]) -> str | None:
     step = (f1 - f0) / (n - 1)
     if step > 0:
         recon = [f0 + i * step for i in range(n)]
-        if all(
-            abs(recon[i] - freqs[i]) / max(abs(freqs[i]), 1e-30) < 1e-9
-            for i in range(n)
-        ):
+        if all(abs(recon[i] - freqs[i]) / max(abs(freqs[i]), 1e-30) < 1e-9 for i in range(n)):
             return f".AC LIN {n} {f0:.6g} {f1:.6g}"
 
     # DEC check
@@ -129,10 +126,7 @@ def _detect_grid(frequencies_hz: Sequence[float]) -> str | None:
         if log1 > log0:
             log_step = (log1 - log0) / (n - 1)
             recon = [10 ** (log0 + i * log_step) for i in range(n)]
-            if all(
-                abs(recon[i] - freqs[i]) / max(abs(freqs[i]), 1e-30) < 1e-9
-                for i in range(n)
-            ):
+            if all(abs(recon[i] - freqs[i]) / max(abs(freqs[i]), 1e-30) < 1e-9 for i in range(n)):
                 n_per_dec = (n - 1) / (log1 - log0)
                 if abs(n_per_dec - round(n_per_dec)) < 1e-6:
                     pts = round(n_per_dec)
@@ -325,14 +319,10 @@ def build_netlist(
 
     L.append("* --- Source ---")
     L.append(
-        f"Vsrc {n_src_pos} {n_src_neg} AC 1 0"
-        "  $ unit phasor; multiply by vth_phasor in Python"
+        f"Vsrc {n_src_pos} {n_src_neg} AC 1 0  $ unit phasor; multiply by vth_phasor in Python"
     )
     rs_val = source_spec.z_source_real_ohm
-    L.append(
-        f"Rs {n_src_pos} {n_sense_jct} {rs_val:.10g}"
-        "  $ source impedance"
-    )
+    L.append(f"Rs {n_src_pos} {n_sense_jct} {rs_val:.10g}  $ source impedance")
     L.append(
         f"Vsense {n_sense_jct} {n_dut} DC 0"
         f"  $ sense source: I(Vsense)>0 into DUT; Z_in=V({n_dut})/I(Vsense)"
@@ -344,9 +334,7 @@ def build_netlist(
         elem = graph.elements[eid]
         ename = element_map[eid]
         prov = provenance.get(eid, {})
-        prov_str = (
-            f" part={prov['part_number']} tier={prov['model_tier']}" if prov else ""
-        )
+        prov_str = f" part={prov['part_number']} tier={prov['model_tier']}" if prov else ""
         comment = f"$ {eid} [{elem.kind.value}]{prov_str}"
 
         if eid in unsupported_elements:
@@ -361,7 +349,11 @@ def build_netlist(
             L.append(f"{vsname} {pos_node} {n_jct} DC 0  $ branch sense for {eid}")
             pos_node = n_jct
 
-        if elem.kind == ElementKind.RESISTOR or elem.kind == ElementKind.INDUCTOR or elem.kind == ElementKind.CAPACITOR:
+        if (
+            elem.kind == ElementKind.RESISTOR
+            or elem.kind == ElementKind.INDUCTOR
+            or elem.kind == ElementKind.CAPACITOR
+        ):
             assert elem.value is not None
             L.append(f"{ename} {pos_node} {neg_node} {elem.value:.10g}  {comment}")
         elif elem.kind == ElementKind.ONE_PORT_MODEL:
@@ -413,4 +405,3 @@ def _explicit_ac_cmd(freqs: list[float]) -> str:
     """Produce a .control block of per-frequency AC solves for irregular grids."""
     inner = "\n  ".join(f"ac lin 1 {f:.10g} {f:.10g}" for f in freqs)
     return f".control\n  {inner}\n.endc"
-

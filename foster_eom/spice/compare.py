@@ -136,4 +136,3 @@ def classify_status(
             f"max_phase_err={worst_phase:.3f} deg > warn threshold {thresholds.warn_max_phase_deg:.3f} deg"
         )
     return "fail", "; ".join(fail_parts)
-

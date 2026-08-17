@@ -33,12 +33,15 @@ def _lossy_cap_z_direct(model: LumpedLossyCapacitor, freqs: np.ndarray) -> np.nd
 class TestLossyInductorEquivalence:
     """LumpedLossyInductor subcircuit Z must match model._z_impl."""
 
-    @pytest.mark.parametrize('l_h,r_dcr,c_par', [
-        (10e-9, 0.0, 0.0),
-        (10e-9, 0.5, 0.0),
-        (10e-9, 0.5, 1e-12),
-        (100e-9, 2.0, 5e-12),
-    ])
+    @pytest.mark.parametrize(
+        "l_h,r_dcr,c_par",
+        [
+            (10e-9, 0.0, 0.0),
+            (10e-9, 0.5, 0.0),
+            (10e-9, 0.5, 1e-12),
+            (100e-9, 2.0, 5e-12),
+        ],
+    )
     def test_impedance_matches_model(self, l_h, r_dcr, c_par) -> None:
         model = LumpedLossyInductor(l_h=l_h, r_dcr_ohm=r_dcr, c_par_f=c_par)
         freqs = np.logspace(6, 10, 50)
@@ -46,49 +49,56 @@ class TestLossyInductorEquivalence:
         z_formula = _lossy_ind_z_direct(model, freqs)
         # Both should agree with each other (they use same formula)
         np.testing.assert_allclose(
-            np.abs(z_model), np.abs(z_formula), rtol=1e-12,
-            err_msg='LossyInductor Z formula mismatch'
+            np.abs(z_model),
+            np.abs(z_formula),
+            rtol=1e-12,
+            err_msg="LossyInductor Z formula mismatch",
         )
 
     def test_subckt_text_topology(self) -> None:
         model = LumpedLossyInductor(l_h=10e-9, r_dcr_ohm=0.5, c_par_f=1e-12)
-        text = _lossy_inductor_subckt(model, 'LTEST')
-        assert '.SUBCKT LTEST p n' in text
-        assert 'Rdcr p nd_i1' in text
-        assert 'Lmain nd_i1 n' in text
-        assert 'Cpar p n' in text
-        assert '.ENDS' in text
+        text = _lossy_inductor_subckt(model, "LTEST")
+        assert ".SUBCKT LTEST p n" in text
+        assert "Rdcr p nd_i1" in text
+        assert "Lmain nd_i1 n" in text
+        assert "Cpar p n" in text
+        assert ".ENDS" in text
 
     def test_subckt_no_cpar_when_zero(self) -> None:
         model = LumpedLossyInductor(l_h=10e-9, r_dcr_ohm=0.5, c_par_f=0.0)
-        text = _lossy_inductor_subckt(model, 'LTEST')
-        assert 'Cpar' not in text
+        text = _lossy_inductor_subckt(model, "LTEST")
+        assert "Cpar" not in text
 
 
 class TestLossyCapacitorEquivalence:
     """LumpedLossyCapacitor subcircuit Z must match model._z_impl."""
 
-    @pytest.mark.parametrize('c_f,r_esr,l_esl', [
-        (10e-12, 0.0, 0.0),
-        (10e-12, 0.1, 0.0),
-        (10e-12, 0.1, 1e-9),
-        (100e-12, 0.5, 5e-9),
-    ])
+    @pytest.mark.parametrize(
+        "c_f,r_esr,l_esl",
+        [
+            (10e-12, 0.0, 0.0),
+            (10e-12, 0.1, 0.0),
+            (10e-12, 0.1, 1e-9),
+            (100e-12, 0.5, 5e-9),
+        ],
+    )
     def test_impedance_matches_model(self, c_f, r_esr, l_esl) -> None:
         model = LumpedLossyCapacitor(c_f=c_f, r_esr_ohm=r_esr, l_esl_h=l_esl)
         freqs = np.logspace(6, 10, 50)
         z_model = np.array([complex(model._z_impl(f)) for f in freqs])
         z_formula = _lossy_cap_z_direct(model, freqs)
         np.testing.assert_allclose(
-            np.abs(z_model), np.abs(z_formula), rtol=1e-12,
-            err_msg='LossyCapacitor Z formula mismatch'
+            np.abs(z_model),
+            np.abs(z_formula),
+            rtol=1e-12,
+            err_msg="LossyCapacitor Z formula mismatch",
         )
 
     def test_subckt_text_topology(self) -> None:
         model = LumpedLossyCapacitor(c_f=10e-12, r_esr_ohm=0.1, l_esl_h=1e-9)
-        text = _lossy_capacitor_subckt(model, 'CTEST')
-        assert '.SUBCKT CTEST p n' in text
-        assert 'Resr p nd_i1' in text
-        assert 'Lesl nd_i1 nd_i2' in text
-        assert 'Cmain nd_i2 n' in text
-        assert '.ENDS' in text
+        text = _lossy_capacitor_subckt(model, "CTEST")
+        assert ".SUBCKT CTEST p n" in text
+        assert "Resr p nd_i1" in text
+        assert "Lesl nd_i1 nd_i2" in text
+        assert "Cmain nd_i2 n" in text
+        assert ".ENDS" in text
