@@ -952,3 +952,81 @@ def reconstruct_fit_model(
         )
     else:
         raise ValueError(f"Unknown model_type '{model_type}' in fit_results.")
+
+
+# ---------------------------------------------------------------------------
+# Prompt-08: Library reference (portable relative path + hash)
+# ---------------------------------------------------------------------------
+
+
+def save_library_ref(
+    project_path: str | Path,
+    library_path: str | Path,
+    library_sha256: str,
+) -> None:
+    """Add or update the ``library_ref`` block in a project YAML file.
+
+    The library path is stored relative to the project YAML when possible.
+
+    Parameters
+    ----------
+    project_path : str | Path
+        Path to the ``.fseom.yaml`` project file.
+    library_path : str | Path
+        Absolute or relative path to the ``library.fseom.db``.
+    library_sha256 : str
+        SHA-256 hash of the library's logical manifest.
+    """
+    import warnings
+
+    p_proj = Path(project_path)
+    p_lib = Path(library_path)
+
+    # Compute relative path when possible
+    try:
+        rel = p_lib.resolve().relative_to(p_proj.resolve().parent)
+        path_str = "./" + rel.as_posix()
+    except ValueError:
+        path_str = str(p_lib)
+        warnings.warn(
+            f"Library path '{p_lib}' is not relative to project directory; "
+            f"storing as absolute path.",
+            stacklevel=2,
+        )
+
+    # Load existing YAML
+    if p_proj.exists():
+        with p_proj.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    else:
+        data = {}
+
+    data["library_ref"] = {
+        "path": path_str,
+        "sha256": library_sha256,
+    }
+
+    with p_proj.open("w", encoding="utf-8") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def load_library_ref(
+    project_path: str | Path,
+) -> dict[str, str] | None:
+    """Load the ``library_ref`` block from a project YAML file.
+
+    Returns ``None`` if no ``library_ref`` key is present (backward-compatible).
+    If present, returns ``{'path': str, 'sha256': str}``.
+
+    A warning is emitted if the library SHA does not match, but no error is
+    raised (the library may have evolved between project snapshots).
+    """
+    p = Path(project_path)
+    if not p.exists():
+        return None
+    with p.open("r", encoding="utf-8") as f:
+        data: dict[str, Any] = yaml.safe_load(f) or {}
+    ref = data.get("library_ref")
+    if ref is None:
+        return None
+    return {"path": str(ref.get("path", "")), "sha256": str(ref.get("sha256", ""))}
