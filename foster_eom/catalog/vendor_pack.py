@@ -58,6 +58,8 @@ _ADAPTER_VERSIONS: dict[str, str] = {
     "murata_csv": "1.0.0",
     "generic_csv": "1.0.0",
     "touchstone": "1.0.0",
+    "s2p_murata_gjm_gqm": "1.0.0",
+    "s2p_coilcraft": "1.0.0",
 }
 
 # ---------------------------------------------------------------------------
@@ -404,6 +406,14 @@ def _make_importer(adapter: str) -> Any:
             from foster_eom.catalog.importers.touchstone import TouchstoneImporter
 
             return TouchstoneImporter()
+        case "s2p_murata_gjm_gqm":
+            from foster_eom.catalog.importers.s2p_murata import MurataGJMGQMImporter
+
+            return MurataGJMGQMImporter()
+        case "s2p_coilcraft":
+            from foster_eom.catalog.importers.s2p_coilcraft import CoilcraftS2PImporter
+
+            return CoilcraftS2PImporter()
         case _:
             raise ValueError(
                 f"Unknown adapter {adapter!r}. Valid adapters: {sorted(_ADAPTER_VERSIONS)}"
