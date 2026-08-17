@@ -219,3 +219,13 @@ __marimo__/
 
 # etc.
 fs-theo/
+
+# -----------------------------------------------------------------------
+# Vendor component data — DO NOT COMMIT manufacturer files
+# Manifest JSONs (provenance only) ARE safe to commit; raw vendor data is NOT.
+# -----------------------------------------------------------------------
+vendor_data/
+vendor_packs/
+*_vendor_pack/
+*.fseom.db
+models/

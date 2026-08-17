@@ -17,6 +17,7 @@ from foster_eom.catalog.fixture import FixtureSpec, FixtureType
 from foster_eom.catalog.library import ComponentLibrary
 from foster_eom.catalog.model_bridge import ModelNotAvailableError
 from foster_eom.catalog.query import ComponentQuery
+from foster_eom.catalog.vendor_pack import VendorPackManifest, VendorPackSpec, VendorPackWorkflow
 
 __all__ = [
     "ComponentKind",
@@ -31,4 +32,7 @@ __all__ = [
     "ModelNotAvailableError",
     "ModelOrigin",
     "ModelTier",
+    "VendorPackManifest",
+    "VendorPackSpec",
+    "VendorPackWorkflow",
 ]
