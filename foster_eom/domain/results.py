@@ -11,9 +11,12 @@ mutable defaults exist.  Rank is conveyed by tuple position in
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    pass
 
 # ---------------------------------------------------------------------------
 # Typed sub-models for circuit solution summaries
@@ -171,3 +174,11 @@ class CandidateResult(BaseModel):
     local_polish_iterations: int = 0
     local_polish_evaluations: int = 0
     solver_termination: str = ""
+
+    # ---- Prompt 06: post-optimization verification summaries --------------
+    # All default to None / False so Prompt-05 tests are unaffected.
+    sweep_result: Any | None = None  # SweepResult
+    q_result: Any | None = None  # QResult
+    stress_summary: Any | None = None  # StressSummary
+    time_domain_result: Any | None = None  # TimeDomainResult
+    verification_complete: bool = False

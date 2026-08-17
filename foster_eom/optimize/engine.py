@@ -451,7 +451,9 @@ def run_optimization(
         # Baseline: analytic seed
         analytic_best = min(seed_res, key=deb_key) if seed_res else None
 
-        def _build_checkpoint(cache: DomainEvaluatorCache = cache, domain: ContinuousOptimizationDomain = domain) -> None:
+        def _build_checkpoint(
+            cache: DomainEvaluatorCache = cache, domain: ContinuousOptimizationDomain = domain
+        ) -> None:
             if not checkpoint_path:
                 return
 

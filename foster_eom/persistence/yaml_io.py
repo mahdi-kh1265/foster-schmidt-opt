@@ -649,9 +649,23 @@ def save_results(result: OptimizationResult, path: str | Path) -> None:
     import dataclasses
 
     def _to_dict(obj: Any) -> Any:
+        import base64
+
+        import numpy as np
+
         if isinstance(obj, CandidateResult):
-            # CandidateResult is a pydantic BaseModel
-            return obj.dict() if hasattr(obj, "dict") else obj.model_dump()
+            # CandidateResult is a pydantic BaseModel; model_dump may contain
+            # nested pydantic models, tuples, ndarrays — recurse into the result.
+            raw = obj.model_dump() if hasattr(obj, "model_dump") else obj.dict()
+            return _to_dict(raw)
+        elif isinstance(obj, np.ndarray):
+            # Encode ndarray as base64 to survive YAML round-trip
+            return {
+                "__ndarray__": True,
+                "dtype": str(obj.dtype),
+                "shape": list(obj.shape),
+                "data": base64.b64encode(obj.tobytes()).decode("ascii"),
+            }
         elif dataclasses.is_dataclass(obj):
             return {f.name: _to_dict(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
         elif isinstance(obj, (list, tuple)):

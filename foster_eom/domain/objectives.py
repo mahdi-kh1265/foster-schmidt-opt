@@ -140,6 +140,36 @@ class AnalysisSpec(BaseModel, frozen=True):
     time_domain_phase_mode: TimeDomainPhaseMode = TimeDomainPhaseMode.SPECIFIED
     spice_verification: SpiceVerificationMode = SpiceVerificationMode.OPTIONAL
 
+    # ---- Prompt 06: sweep band (explicit; None -> derived from targets) ----
+    sweep_f_min_hz: float | None = None
+    sweep_f_max_hz: float | None = None
+    sweep_band_margin_lo: float = 0.5
+    sweep_band_margin_hi: float = 2.0
+
+    # ---- Prompt 06: adaptive sweep parameters ------------------------------
+    sweep_n_base_points: int = 200
+    sweep_max_depth: int = 5
+    sweep_pole_min_refinement_depth: int = 3
+    sweep_min_interval_width_ratio: float = 1e-3
+    sweep_curvature_tol: float = 0.02
+    sweep_off_target_v_eom_db_threshold: float = 6.0
+    sweep_power_balance_rtol: float = 1e-3
+
+    # ---- Prompt 06: Q extraction -------------------------------------------
+    q_search_window_ratio: float = 0.3
+    q_multiple_peak_threshold_ratio: float = 0.8
+    q_usable_bw_eta: float = 0.9
+
+    # ---- Prompt 06: time reconstruction ------------------------------------
+    time_domain_min_samples_per_cycle: int = 20
+    time_domain_max_n_points: int = 50_000
+    time_domain_commensurate_rtol: float = 1e-4
+    time_domain_commensurate_max_denominator: int = 1000
+    time_domain_max_common_period_s: float = 1e-3
+    time_domain_n_cycles_fallback: int = 10
+    time_domain_mc_draws: int = 500
+    time_domain_rng_seed: int | None = None
+
 
 class ExportSpec(BaseModel, frozen=True):
     """Export configuration.
