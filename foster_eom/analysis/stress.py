@@ -268,10 +268,11 @@ def compute_stress(
             )
         )
 
-    def _worst_eid(key_fn: object) -> str | None:
+    from typing import Callable, Any
+    def _worst_eid(key_fn: Callable[[Any], Any]) -> str | None:
         if not element_results:
             return None
-        return max(element_results, key=key_fn).element_id  # type: ignore[arg-type]
+        return max(element_results, key=key_fn).element_id
 
     return StressSummary(
         elements=tuple(element_results),
