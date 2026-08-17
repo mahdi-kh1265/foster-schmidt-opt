@@ -116,6 +116,14 @@ class EvaluationContext:
     feasibility_tolerance: float
     near_feasibility_tolerance: float
 
+    # Optional explicit P06 sweep band.
+    # When set, _run_p06_verify uses this band instead of deriving it from
+    # evaluation_frequencies_hz extremes.  Separates the P05 discrete grid
+    # (for constraint evaluation) from the P06 continuous sweep band.
+    # If None, the sweep band is derived from SweepSpec.from_targets() with
+    # no validity_range clip — i.e., the full margin-expanded band.
+    p06_sweep_band_hz: tuple[float, float] | None = None
+
 
 # ---------------------------------------------------------------------------
 # Cache

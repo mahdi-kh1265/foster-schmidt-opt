@@ -73,7 +73,10 @@ class RealizationResult:
     combos : list[CatalogCombo]
         All evaluated combos, Deb-sorted (best first).
     best : CatalogCombo | None
-        The Deb-best combo, or None if no combos evaluated.
+        The first P06-verified passing combo in Deb order (= ``first_passing_combo``)
+        when at least one passes.  Falls back to the Deb-best unverified combo if
+        all verified combos fail.  None if no combos were evaluated.
+        Never reflects a P06 failure when a passing combo exists.
     degradation : float | None
         ``best.eval_result.objective_value - continuous_baseline.objective_value``.
         Positive = degraded, negative = improved. None if no combos.

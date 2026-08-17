@@ -167,23 +167,35 @@ def realize(
             first_passing = cc
 
     # ------------------------------------------------------------------
-    # 7. Determine status
+    # 7. Determine status and best combo
     # ------------------------------------------------------------------
-    best = catalog_combos[0] if catalog_combos else None
+    # best = first P06-verified passing combo (when one exists), otherwise
+    # the Deb-best of all evaluated combos regardless of verification.
+    # This ensures that if Deb-#1 fails P06 and Deb-#2 passes, best = Deb-#2.
+    if first_passing is not None:
+        best: CatalogCombo | None = first_passing
+    elif catalog_combos:
+        best = catalog_combos[0]  # Deb-best unverified fallback
+    else:
+        best = None
+
+    n_unverified = len(catalog_combos) - len(verified)
+    all_verified_failed = verified and all(not cc.verify_passed for cc in verified)
 
     if not catalog_combos:
         status = "no_candidates"
     elif first_passing is not None:
         status = "feasible"
     elif search_exhaustive and all(not cc.eval_result.feasible for cc in catalog_combos):
+        # All MNA-infeasible AND exhaustive → genuinely infeasible
         status = "infeasible"
-    elif search_truncated and all(not cc.eval_result.feasible for cc in catalog_combos):
-        status = "no_feasible_found"
+    elif all_verified_failed and n_unverified == 0 and search_exhaustive:
+        # All combos verified, all failed, and search was exhaustive
+        status = "infeasible"
     elif best is not None and best.eval_result.near_feasible:
         status = "degraded"
-    elif search_exhaustive:
-        status = "infeasible"
     else:
+        # Covers: truncated search, partial verification, unverified candidates remaining
         status = "no_feasible_found"
 
     degradation: float | None = None
@@ -307,15 +319,25 @@ def _run_p06_verify(
         cc.verify_report = {"error": f"graph substitution failed: {exc}"}
         return
 
-    # Derive sweep band from context
-    f_min = min(context.evaluation_frequencies_hz)
-    f_max = max(context.evaluation_frequencies_hz)
+    # Derive sweep band.
+    #
+    # Use the explicitly resolved P06 band from ctx when available.  Otherwise
+    # derive from targets with from_targets() default margins — critically, do NOT
+    # pass validity_range=eval_frequencies_hz because that would clip the P06
+    # continuous sweep to the discrete P05 grid, which may be narrower than the
+    # margin-expanded band that P06 needs.
+    #
+    # Model eligibility (build_slot_specs) is separately constrained to
+    # (min, max)(eval_frequencies_hz), which is the correct P05 band.
     target_hz = tuple(context.evaluation_frequencies_hz[i] for i in context.target_indices)
 
-    sweep_spec = SweepSpec.from_targets(
-        target_hz=target_hz,
-        validity_range=(f_min, f_max),
-    )
+    if context.p06_sweep_band_hz is not None:
+        # Explicit resolved band — use it directly
+        f_min, f_max = context.p06_sweep_band_hz
+        sweep_spec = SweepSpec(f_min_hz=f_min, f_max_hz=f_max)
+    else:
+        # Derive from targets using margin factors, no validity_range clipping
+        sweep_spec = SweepSpec.from_targets(target_hz=target_hz)
 
     try:
         sweep_result = compute_adaptive_sweep(
