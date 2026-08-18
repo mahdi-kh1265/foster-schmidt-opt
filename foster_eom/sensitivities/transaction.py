@@ -52,37 +52,39 @@ def build_y_p_list(
             elem_id = f"{branch_str}_C0"
             if elem_id in dy_dc_elem:
                 c0_f = graph.elements[elem_id].value
-                dc = dC0_dx(c0_f, desc)
+                dc = dC0_dx(float(c0_f), desc) if c0_f is not None else 0.0
                 y_p_k += dy_dc_elem[elem_id] * dc
 
         elif desc.var_type == "logkinf":
             elem_id = f"{branch_str}_Linf"
             if elem_id in dy_dl_elem:
-                l_inf_h = graph.elements[elem_id].value
-                dl = dLinf_dx(l_inf_h, desc)
+                l_inf = graph.elements[elem_id].value
+                dl = dLinf_dx(float(l_inf), desc) if l_inf is not None else 0.0
                 y_p_k += dy_dl_elem[elem_id] * dl
 
         elif desc.var_type == "logkm":
-            m = desc.cell_index
-            c_id = f"{branch_str}_C{m+1}"
-            l_id = f"{branch_str}_L{m+1}"
-            if c_id in dy_dc_elem:
-                cm_f = graph.elements[c_id].value
-                dc = dCm_dxkm(cm_f, desc)
-                y_p_k += dy_dc_elem[c_id] * dc
-            if l_id in dy_dl_elem:
-                lm_h = graph.elements[l_id].value
-                dl = dLm_dxkm(lm_h, desc)
-                y_p_k += dy_dl_elem[l_id] * dl
+            idx = (desc.cell_index + 1) if desc.cell_index is not None else 1
+            cm_id = f"{branch_str}_C{idx}"
+            lm_id = f"{branch_str}_L{idx}"
+
+            if cm_id in dy_dc_elem:
+                cm = graph.elements[cm_id].value
+                dcm = dCm_dxkm(float(cm), desc) if cm is not None else 0.0
+                y_p_k += dy_dc_elem[cm_id] * dcm
+
+            if lm_id in dy_dl_elem:
+                lm = graph.elements[lm_id].value
+                dlm = dLm_dxkm(float(lm), desc) if lm is not None else 0.0
+                y_p_k += dy_dl_elem[lm_id] * dlm
 
         elif desc.var_type == "fp":
-            m = desc.cell_index
-            l_id = f"{branch_str}_L{m+1}"
-            if l_id in dy_dl_elem:
-                lm_h = graph.elements[l_id].value
-                fp = phys.f_poles_hz[m]
-                dl = dLm_dxfp(lm_h, fp, desc)
-                y_p_k += dy_dl_elem[l_id] * dl
+            idx = (desc.cell_index + 1) if desc.cell_index is not None else 1
+            lm_id = f"{branch_str}_L{idx}"
+            if lm_id in dy_dl_elem:
+                lm = graph.elements[lm_id].value
+                fp = phys.f_poles_hz[desc.cell_index] if desc.cell_index is not None else 1.0
+                dlm = dLm_dxfp(float(lm), float(fp), desc) if lm is not None else 0.0
+                y_p_k += dy_dl_elem[lm_id] * dlm
 
         y_p_list.append(y_p_k)
 
@@ -142,7 +144,7 @@ class DerivativeTransaction:
             state, status, diagnostics = solve_mna_factorized(y_nom, b_nom)
             self.metrics["factorizations"] += 1
 
-            if status != CircuitSolveStatus.OK:
+            if status != CircuitSolveStatus.OK or state is None:
                 continue
 
             y_p_list = build_y_p_list(graph, node_map, mapper, x, f_hz)
@@ -184,7 +186,7 @@ class DerivativeTransaction:
             state, status, _ = solve_mna_factorized(y_nom, b_nom)
             self.metrics["factorizations"] += 1
 
-            if status != CircuitSolveStatus.OK:
+            if status != CircuitSolveStatus.OK or state is None:
                 continue
 
             y_p_list = build_y_p_list(graph, node_map, mapper, x, f_hz)

@@ -25,9 +25,8 @@ def compute_adjoint_state(
         The adjoint state vector lambda, shape (N,) or (N, M).
     """
     RHS = 2.0 * q
-    # trans=2 solves A^H x = b. Since lu_and_piv is for Y, this solves Y^H lambda = RHS.
     lam = scipy.linalg.lu_solve(state.lu_and_piv, RHS, trans=2)
-    return lam
+    return np.asarray(lam)
 
 def compute_adjoint_gradient(
     lam: np.ndarray,

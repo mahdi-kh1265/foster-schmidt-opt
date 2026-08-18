@@ -38,4 +38,4 @@ def compute_direct_state_sensitivities(
         RHS[:, i] = -(Y_p @ V)
         
     X_p = scipy.linalg.lu_solve(state.lu_and_piv, RHS)
-    return X_p
+    return np.asarray(X_p)

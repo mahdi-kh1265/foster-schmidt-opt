@@ -112,7 +112,7 @@ def test_direct_vs_adjoint_vs_fd():
     v_eom = sol.v_eom
     eom_node_name = "load"
     try:
-        eom_idx = graph.get_node_index(eom_node_name)
+        eom_idx = node_map[eom_node_name]
     except KeyError:
         eom_idx = 1 # heuristic
         
@@ -121,28 +121,32 @@ def test_direct_vs_adjoint_vs_fd():
     x_state = V
     
     # Adjoint
-    # the objective is |V_eom|. So f(x) = |v_eom|. df/dv_eom = 0.5 * conj(v_eom) / |v_eom|
-    df_dv = 0.5 * np.conj(v_eom) / abs(v_eom) if abs(v_eom) > 0 else 0.0
-    # Wait, the v is complex, the function is f(v) = sqrt(v.real^2 + v.imag^2)
-    # df/dv.real = v.real / |v|
-    # df/dv.imag = v.imag / |v|
-    # adjoint rhs wants to map complex state directly.
-    # The derivative of |v| wrt parameter p: d|v|/dp = Re(conj(v) / |v| * dv/dp)
-    adjoint_rhs = np.zeros(Y.shape[0], dtype=np.complex128)
-    adjoint_rhs[eom_idx - 1] = np.conj(v_eom) / abs(v_eom) if abs(v_eom) > 0 else 0.0
-    lam = np.linalg.solve(Y.T, adjoint_rhs)
+    from foster_eom.sensitivities.off_target import compute_v_eom_adjoint_gradient
+    from foster_eom.circuit.mna import FactorizedMNAState, solve_mna_factorized
     
-    adj_grad = np.zeros(n_dim)
-    for i in range(n_dim):
-        adj_grad[i] = -np.vdot(lam, y_prime_list[i] @ x_state).real
+    Y, I_vec, node_map = assemble_mna(graph, source, f_hz)
+    state, _, _ = solve_mna_factorized(Y, I_vec)
+    adj_grad = compute_v_eom_adjoint_gradient(graph, node_map, state, y_prime_list)
         
     # Direct
+    from foster_eom.sensitivities.direct import compute_direct_state_sensitivities
+    x_p = compute_direct_state_sensitivities(state, y_prime_list)
+    # x_p has shape (N, K)
+    # v_eom = v_pos - v_neg
+    eom_id = graph.eom_element_id
+    pos = graph.elements[eom_id].node_pos
+    neg = graph.elements[eom_id].node_neg
+    idx_pos = -1 if pos == graph.ground_node_id else node_map[pos]
+    idx_neg = -1 if neg == graph.ground_node_id else node_map[neg]
+    
     dir_grad = np.zeros(n_dim)
     for i in range(n_dim):
-        b_prime = -(y_prime_list[i] @ x_state)
-        dx_state = np.linalg.solve(Y, b_prime)
-        dv_eom = dx_state[eom_idx - 1]
-        dir_grad[i] = np.real(np.conj(v_eom) / abs(v_eom) * dv_eom)
+        dv_pos = 0.0j if idx_pos == -1 else x_p[idx_pos, i]
+        dv_neg = 0.0j if idx_neg == -1 else x_p[idx_neg, i]
+        dv_eom = dv_pos - dv_neg
+        
+        # d|V| = Re(V* / |V| * dV)
+        dir_grad[i] = np.real(np.conj(v_eom) / abs(v_eom) * dv_eom) if abs(v_eom) > 0 else 0.0
         
     print(f"FD:      {fd_grad}")
     print(f"Adjoint: {adj_grad}")
