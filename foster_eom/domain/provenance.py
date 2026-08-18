@@ -93,7 +93,7 @@ def collect_dependency_versions() -> dict[str, str]:
 
                 versions["PyYAML"] = getattr(yaml, "__version__", "unknown")
             elif pkg_name == "skrf":
-                import skrf  # type: ignore[import-not-found]
+                import skrf  # type: ignore[import-untyped]
 
                 versions["scikit-rf"] = getattr(skrf, "__version__", "unknown")
             else:

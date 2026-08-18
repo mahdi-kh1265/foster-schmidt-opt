@@ -306,6 +306,11 @@ def run_optimization(
     # ---- 0. Preflight ----
     preflight = run_preflight(opt_spec)
 
+    import foster_eom.optimize.perf as _perf
+
+    _p = _perf.get_perf_stats()
+    _t0_engine = __import__("time").perf_counter() if _p else 0.0
+
     def _version(pkg: str) -> str:
         try:
             return importlib.metadata.version(pkg)
@@ -323,6 +328,7 @@ def run_optimization(
     pole_spec_b1 = _domain_to_internal_pole_spec(topo_spec.pole_spec_branch1)
     pole_spec_b2 = _domain_to_internal_pole_spec(topo_spec.pole_spec_branch2)
 
+    _t_domain_start = __import__("time").perf_counter() if _p else 0.0
     all_domains = group_seeds_into_domains(
         seeds=seed_result.seeds,
         pole_spec_b1=pole_spec_b1,
@@ -330,6 +336,8 @@ def run_optimization(
         f_targets_hz=np.array(target_frequencies_hz),
         component_limits=component_limits,
     )
+    if _p:
+        _p.domain_time += __import__("time").perf_counter() - _t_domain_start
 
     feasible_domains = [d for d in all_domains if d.structurally_feasible]
 
@@ -514,6 +522,7 @@ def run_optimization(
             with contextlib.suppress(Exception):
                 save_results(res_temp, checkpoint_path)
 
+        _t_de_start = __import__("time").perf_counter() if _p else 0.0
         de_candidates, de_diag = run_de(
             context=ctx,
             cache=cache,
@@ -527,13 +536,27 @@ def run_optimization(
             checkpoint_interval=opt_spec.checkpoint_every_evaluations,
             checkpoint_callback=_build_checkpoint,
         )
+        if _p:
+            _p.de_time += __import__("time").perf_counter() - _t_de_start
+            _p.de_evals += cache.n_unique_evaluations - (len(seed_res) if seed_res else 0)
+
         all_de_diags.append(de_diag)
 
         # ---- 7. Basin dedup ----
+        _t_dedup_start = __import__("time").perf_counter() if _p else 0.0
         basins = deduplicate_basins(de_candidates, radius=opt_spec.basin_dedup_radius)
+        if _p:
+            _p.dedup_time += __import__("time").perf_counter() - _t_dedup_start
 
         # ---- 8. Local polish ----
+        if _p:
+            _p.record_memory(f"before_polish_domain_{domain.domain_id}")
+
+        _t_polish_start = __import__("time").perf_counter() if _p else 0.0
         polish_results = polish_top_k(basins, ctx, cache, opt_spec)
+        if _p:
+            _p.polish_time += __import__("time").perf_counter() - _t_polish_start
+            _p.record_memory(f"after_polish_domain_{domain.domain_id}")
 
         # Collect polished candidates
         polished_set = list({pr.retained.x: pr.retained for pr in polish_results}.values())
@@ -619,6 +642,9 @@ def run_optimization(
         n_domains_dropped_for_budget=n_dropped,
         domain_search_truncated=truncated,
     )
+
+    if _p:
+        _p.total_time = __import__("time").perf_counter() - _t0_engine
 
     return OptimizationResult(
         candidates=tuple(all_candidate_results),

@@ -113,6 +113,12 @@ def assemble_mna(
     Y = np.zeros((n, n), dtype=np.complex128)
     I_vec = np.zeros(n, dtype=np.complex128)
 
+    import foster_eom.optimize.perf as _perf
+
+    _p = _perf.get_perf_stats()
+    if _p:
+        _p.record_assembly()
+
     # Stamp all passive elements
     for elem in graph.elements.values():
         stamp_element(Y, elem, node_map, graph.ground_node_id, f_hz)
@@ -163,6 +169,12 @@ def solve_mna(
     diagnostics : SolveDiagnostics
         Diagnostic details.
     """
+    import foster_eom.optimize.perf as _perf
+
+    _p = _perf.get_perf_stats()
+    if _p:
+        _p.record_mna_solve(1)  # 1 frequency per call
+
     if opts is None:
         opts = SolverOptions()
 

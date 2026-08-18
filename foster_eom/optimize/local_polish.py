@@ -98,6 +98,16 @@ def polish_basin(
     domain_id = context.domain.domain_id
     n_dim = context.domain.dimension
 
+    import foster_eom.optimize.perf as _perf
+
+    _p = _perf.get_perf_stats()
+    if _p:
+        _p.current_phase = "polish"
+        _p.current_domain = domain_id
+        _p.current_basin = f"basin_{basin_index}"
+        _p.record_memory(f"before_polish_basin_{basin_index}")
+        t_start = __import__("time").perf_counter()
+
     if n_dim == 0:
         return PolishResult(
             domain_id=domain_id,
@@ -123,9 +133,17 @@ def polish_basin(
     n_evals_before = cache.n_unique_evaluations
 
     def _obj(x: np.ndarray) -> float:
+        if _p:
+            _p.current_callback = "objective"
+            _p.polish_evals += 1
+            _p.record_x_eval(domain_id, tuple(x))
         return evaluate(x, context, cache).objective_value
 
     def _g_vec(x: np.ndarray) -> np.ndarray:
+        if _p:
+            _p.current_callback = "constraint"
+            _p.polish_evals += 1
+            _p.record_x_eval(domain_id, tuple(x))
         r = evaluate(x, context, cache)
         if not r.hard_margins:
             return np.array([1.0])
@@ -162,6 +180,19 @@ def polish_basin(
         reason = str(exc)
 
     n_evals = cache.n_unique_evaluations - n_evals_before
+
+    if _p:
+        dt = __import__("time").perf_counter() - t_start
+        _p.basin_polish_time[f"basin_{basin_index}"] = dt
+        _p.basin_nit[f"basin_{basin_index}"] = n_iter
+        if success:
+            _p.basin_njev[f"basin_{basin_index}"] = getattr(scipy_result, "njev", 0)
+            _p.basin_nfev[f"basin_{basin_index}"] = getattr(scipy_result, "nfev", 0)
+        _p.basin_status[f"basin_{basin_index}"] = term_msg
+        _p.basin_success[f"basin_{basin_index}"] = success
+        _p.polish_iterations += n_iter
+        _p.record_memory(f"after_polish_basin_{basin_index}")
+        _p.current_basin = None
 
     # Pre-polish retention: if post is Deb-worse, discard
     retained = pre if deb_better(pre, post_result) else post_result
