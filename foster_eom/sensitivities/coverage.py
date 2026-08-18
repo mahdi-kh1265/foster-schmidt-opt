@@ -1,13 +1,31 @@
 from enum import Enum, auto
+from dataclasses import dataclass
 
-class DerivativeStatus(Enum):
-    """Classification of derivative support for a continuous coordinate."""
-    ANALYTICAL_SUPPORTED = auto()
-    EXPLICIT_COORDINATE_ONLY = auto()
+class DerivativeRoute(Enum):
+    """How the derivative of a continuous coordinate propagates to the system."""
+    MNA_DERIVED = auto()          # Propagates only through MNA physical components
+    COORDINATE_DERIVED = auto()   # Propagates only through direct coordinate constraints
+    COMBINED = auto()             # Propagates through both MNA and coordinate constraints
     UNSUPPORTED = auto()
 
-def get_derivative_status(var_type: str) -> DerivativeStatus:
-    """Return the derivative coverage status for a given continuous variable type.
+class MNAStampKind(Enum):
+    """The types of MNA elements a variable perturbs."""
+    CAPACITOR = auto()
+    INDUCTOR = auto()
+
+class CoordinateConstraintKind(Enum):
+    """The types of coordinate-only constraints a variable feeds into."""
+    POLE_SEPARATION = auto()
+    # Simple component bounds are not explicitly routed here unless needed
+
+@dataclass(frozen=True)
+class DerivativeCoverage:
+    route: DerivativeRoute
+    mna_stamps: tuple[MNAStampKind, ...] = ()
+    coordinate_constraints: tuple[CoordinateConstraintKind, ...] = ()
+
+def get_derivative_coverage(var_type: str) -> DerivativeCoverage:
+    """Return the derivative coverage path for a given continuous variable type.
     
     Parameters
     ----------
@@ -16,10 +34,20 @@ def get_derivative_status(var_type: str) -> DerivativeStatus:
         
     Returns
     -------
-    DerivativeStatus
-        The support classification.
+    DerivativeCoverage
+        The explicit routing of this variable's derivatives.
     """
-    if var_type in ("logk0", "logkinf", "logkm", "fp"):
-        return DerivativeStatus.EXPLICIT_COORDINATE_ONLY
+    if var_type == "logk0":
+        return DerivativeCoverage(DerivativeRoute.MNA_DERIVED, (MNAStampKind.CAPACITOR,))
+    elif var_type == "logkinf":
+        return DerivativeCoverage(DerivativeRoute.MNA_DERIVED, (MNAStampKind.INDUCTOR,))
+    elif var_type == "logkm":
+        return DerivativeCoverage(DerivativeRoute.MNA_DERIVED, (MNAStampKind.CAPACITOR, MNAStampKind.INDUCTOR))
+    elif var_type == "fp":
+        return DerivativeCoverage(
+            DerivativeRoute.COMBINED,
+            (MNAStampKind.INDUCTOR,),
+            (CoordinateConstraintKind.POLE_SEPARATION,)
+        )
     
-    return DerivativeStatus.UNSUPPORTED
+    return DerivativeCoverage(DerivativeRoute.UNSUPPORTED)
