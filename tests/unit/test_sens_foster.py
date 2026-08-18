@@ -82,3 +82,92 @@ def test_cell_components_fd():
     fd_dLm_dxfp = (km / (2 * math.pi * fp_plus)**2 - km / (2 * math.pi * fp_minus)**2) / (2 * h)
     
     assert exact_dLm_dxfp == pytest.approx(fd_dLm_dxfp, rel=1e-5)
+
+def test_end_to_end_decision_variable_mapper_fd():
+    from foster_eom.optimize.variable_map import build_variable_mapper
+    
+    mapper = build_variable_mapper(
+        branch1_n_cells=1,
+        branch1_has_c0=True,
+        branch1_has_linf=True,
+        branch1_pole_regions=((1e6, 10e6),),
+        branch1_k_box_bounds=((1e9, 1e12),),
+        branch1_k0_bounds=(1e9, 1e12),
+        branch1_kinf_bounds=(1e9, 1e12),
+        branch1_fixed_k0=None,
+        branch1_fixed_kinf=None,
+        branch1_fixed_k_residues=(None,),
+        branch1_fixed_f_poles_hz=(None,),
+        branch2_n_cells=0,
+        branch2_has_c0=False,
+        branch2_has_linf=False,
+        branch2_pole_regions=(),
+        branch2_k_box_bounds=(),
+        branch2_k0_bounds=None,
+        branch2_kinf_bounds=None,
+        branch2_fixed_k0=None,
+        branch2_fixed_kinf=None,
+        branch2_fixed_k_residues=(),
+        branch2_fixed_f_poles_hz=()
+    )
+    
+    # x array layout: logk0, logkinf, logkm_0, fp_0
+    x_val = np.array([0.5, 0.5, 0.5, 0.3])
+    phys_b1, _ = mapper.unpack(x_val)
+    
+    # The cells are at index 0. C0 is added after cells, so c_values_f[1]. Linf is l_values_h[1].
+    C0_val = phys_b1.c_values_f[1]
+    Linf_val = phys_b1.l_values_h[1]
+    Cm_val = phys_b1.c_values_f[0]
+    Lm_val = phys_b1.l_values_h[0]
+    fp_val = phys_b1.f_poles_hz[0]
+    
+    exact_dC0_dx = dC0_dx(C0_val, mapper.descriptors[0])
+    exact_dLinf_dx = dLinf_dx(Linf_val, mapper.descriptors[1])
+    exact_dCm_dxkm = dCm_dxkm(Cm_val, mapper.descriptors[2])
+    exact_dLm_dxkm = dLm_dxkm(Lm_val, mapper.descriptors[2])
+    exact_dLm_dxfp = dLm_dxfp(Lm_val, fp_val, mapper.descriptors[3])
+    
+    h = 1e-5
+    
+    # dC0/dx
+    x_plus = x_val.copy()
+    x_plus[0] += h
+    x_minus = x_val.copy()
+    x_minus[0] -= h
+    b1_plus, _ = mapper.unpack(x_plus)
+    b1_minus, _ = mapper.unpack(x_minus)
+    fd_dC0_dx = (b1_plus.c_values_f[1] - b1_minus.c_values_f[1]) / (2 * h)
+    assert exact_dC0_dx == pytest.approx(fd_dC0_dx, rel=1e-6)
+    
+    # dLinf/dx
+    x_plus = x_val.copy()
+    x_plus[1] += h
+    x_minus = x_val.copy()
+    x_minus[1] -= h
+    b1_plus, _ = mapper.unpack(x_plus)
+    b1_minus, _ = mapper.unpack(x_minus)
+    fd_dLinf_dx = (b1_plus.l_values_h[1] - b1_minus.l_values_h[1]) / (2 * h)
+    assert exact_dLinf_dx == pytest.approx(fd_dLinf_dx, rel=1e-6)
+    
+    # dCm/dxkm and dLm/dxkm
+    x_plus = x_val.copy()
+    x_plus[2] += h
+    x_minus = x_val.copy()
+    x_minus[2] -= h
+    b1_plus, _ = mapper.unpack(x_plus)
+    b1_minus, _ = mapper.unpack(x_minus)
+    fd_dCm_dxkm = (b1_plus.c_values_f[0] - b1_minus.c_values_f[0]) / (2 * h)
+    fd_dLm_dxkm = (b1_plus.l_values_h[0] - b1_minus.l_values_h[0]) / (2 * h)
+    assert exact_dCm_dxkm == pytest.approx(fd_dCm_dxkm, rel=1e-6)
+    assert exact_dLm_dxkm == pytest.approx(fd_dLm_dxkm, rel=1e-6)
+    
+    # dLm/dxfp
+    x_plus = x_val.copy()
+    x_plus[3] += h
+    x_minus = x_val.copy()
+    x_minus[3] -= h
+    b1_plus, _ = mapper.unpack(x_plus)
+    b1_minus, _ = mapper.unpack(x_minus)
+    fd_dLm_dxfp = (b1_plus.l_values_h[0] - b1_minus.l_values_h[0]) / (2 * h)
+    assert exact_dLm_dxfp == pytest.approx(fd_dLm_dxfp, rel=1e-6)

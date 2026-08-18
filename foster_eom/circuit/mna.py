@@ -249,3 +249,136 @@ def solve_mna(
             residual_norm=residual_norm,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Factorized Solve (Sensitivities)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FactorizedMNAState:
+    """Factorized nominal state for sensitivity back-substitution.
+
+    Attributes
+    ----------
+    lu_and_piv : tuple[np.ndarray, np.ndarray]
+        LU factorization and pivots from ``scipy.linalg.lu_factor``.
+    V_nominal : np.ndarray
+        The nominal node voltage solution vector.
+    """
+
+    lu_and_piv: tuple[np.ndarray, np.ndarray]
+    V_nominal: np.ndarray
+
+
+def solve_mna_factorized(
+    Y: np.ndarray,
+    I_vec: np.ndarray,
+    opts: SolverOptions | None = None,
+) -> tuple[FactorizedMNAState | None, CircuitSolveStatus, SolveDiagnostics]:
+    """Solve the linear system ``Y · V = I`` and retain the LU factorization.
+
+    Used by the sensitivity engine for efficient back-substitution.
+    Strictly reproduces the failure semantics of ``solve_mna``.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Complex admittance matrix.
+    I_vec : np.ndarray
+        Complex RHS current vector.
+    opts : SolverOptions | None
+        Solver options.  Defaults to ``SolverOptions()``.
+
+    Returns
+    -------
+    state : FactorizedMNAState | None
+        Factorized state, or ``None`` if the solve failed.
+    status : CircuitSolveStatus
+        Outcome status.
+    diagnostics : SolveDiagnostics
+        Diagnostic details.
+    """
+    import scipy.linalg
+    import foster_eom.optimize.perf as _perf
+
+    _p = _perf.get_perf_stats()
+    if _p:
+        _p.record_mna_solve(1)  # 1 frequency per call
+
+    if opts is None:
+        opts = SolverOptions()
+
+    # -- 1. Nonfinite pre-screen -------------------------------------------
+    nf_matrix = not np.all(np.isfinite(Y))
+    nf_rhs = not np.all(np.isfinite(I_vec))
+    if nf_matrix or nf_rhs:
+        return (
+            None,
+            CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
+            SolveDiagnostics(
+                nonfinite_in_matrix=nf_matrix,
+                nonfinite_in_rhs=nf_rhs,
+            ),
+        )
+
+    # -- 2. Condition number -----------------------------------------------
+    try:
+        cond = float(np.linalg.cond(Y))
+    except (np.linalg.LinAlgError, ValueError):
+        cond = float("inf")
+
+    if cond > opts.condition_threshold:
+        return (
+            None,
+            CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
+            SolveDiagnostics(condition_number=cond),
+        )
+
+    # -- 3. Solve (Factorized) ---------------------------------------------
+    try:
+        lu_and_piv = scipy.linalg.lu_factor(Y)
+        V = scipy.linalg.lu_solve(lu_and_piv, I_vec)
+    except (np.linalg.LinAlgError, ValueError):
+        return (
+            None,
+            CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
+            SolveDiagnostics(condition_number=cond),
+        )
+
+    # -- 4. Solution finiteness --------------------------------------------
+    nf_sol = not np.all(np.isfinite(V))
+    if nf_sol:
+        return (
+            None,
+            CircuitSolveStatus.NUMERICAL_ERROR,
+            SolveDiagnostics(
+                condition_number=cond,
+                nonfinite_in_solution=True,
+            ),
+        )
+
+    # -- 5. Residual check -------------------------------------------------
+    residual = float(np.linalg.norm(Y @ V - I_vec))
+    i_norm = max(float(np.linalg.norm(I_vec)), 1e-30)
+    residual_norm = residual / i_norm
+
+    if residual_norm > opts.residual_threshold:
+        return (
+            None,
+            CircuitSolveStatus.NUMERICAL_ERROR,
+            SolveDiagnostics(
+                condition_number=cond,
+                residual_norm=residual_norm,
+            ),
+        )
+
+    return (
+        FactorizedMNAState(lu_and_piv=lu_and_piv, V_nominal=V),
+        CircuitSolveStatus.OK,
+        SolveDiagnostics(
+            condition_number=cond,
+            residual_norm=residual_norm,
+        ),
+    )
