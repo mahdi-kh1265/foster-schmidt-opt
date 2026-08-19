@@ -1,9 +1,11 @@
-import numpy as np
 from dataclasses import dataclass
 
-from foster_eom.circuit.graph import CircuitGraph, GROUND
-from foster_eom.domain.source import SourceSpec
+import numpy as np
+
+from foster_eom.circuit.graph import CircuitGraph
 from foster_eom.circuit.mna import FactorizedMNAState
+from foster_eom.domain.source import SourceSpec
+
 
 @dataclass(frozen=True)
 class ObservableDerivatives:
@@ -11,11 +13,14 @@ class ObservableDerivatives:
 
     All arrays have shape (K,) where K is the number of parameters.
     """
-    v_port: np.ndarray       # complex
-    i_port: np.ndarray       # complex
-    z_in: np.ndarray         # complex
-    gamma: np.ndarray        # complex
+
+    v_port: np.ndarray  # complex
+    i_port: np.ndarray  # complex
+    z_in: np.ndarray  # complex
+    gamma: np.ndarray  # complex
     p_delivered: np.ndarray  # float (real scalar)
+    v_eom: np.ndarray  # complex — EOM voltage phasor derivative
+    element_voltage_derivs: dict[str, np.ndarray]  # elem_id → dV_elem/dp (complex, K)
 
 
 def compute_observable_derivatives(
@@ -60,6 +65,8 @@ def compute_observable_derivatives(
             z_in=np.zeros(0, dtype=np.complex128),
             gamma=np.zeros(0, dtype=np.complex128),
             p_delivered=np.zeros(0, dtype=np.float64),
+            v_eom=np.zeros(0, dtype=np.complex128),
+            element_voltage_derivs={},
         )
 
     k_params = X_p.shape[1]
@@ -78,7 +85,7 @@ def compute_observable_derivatives(
 
     # 2. d I_s / dp
     # I_s = (V_{th} - V_p) / Z_s
-    di_port = - dv_port / source_spec.z_source
+    di_port = -dv_port / source_spec.z_source
 
     # 3. d Z_in / dp
     # Z_in = V_p / I_p
@@ -106,10 +113,45 @@ def compute_observable_derivatives(
     # dP/dp = Re( dV_p * I_p^* + V_p * dI_p^* )
     dp_delivered = np.real(dv_port * np.conj(i_port_nom) + v_port_nom * np.conj(di_port))
 
+    # 6. d V_eom / dp  (complex phasor, same semantics as CircuitSolution.v_eom)
+    dv_eom = np.zeros(k_params, dtype=np.complex128)
+    if graph.eom_element_id is not None and graph.eom_element_id in graph.elements:
+        eom_elem = graph.elements[graph.eom_element_id]
+        eom_pos = eom_elem.node_pos
+        eom_neg = eom_elem.node_neg
+        idx_eom_pos = -1 if eom_pos == graph.ground_node_id else node_map.get(eom_pos, -1)
+        idx_eom_neg = -1 if eom_neg == graph.ground_node_id else node_map.get(eom_neg, -1)
+        dv_eom_pos = (
+            np.zeros(k_params, dtype=np.complex128) if idx_eom_pos == -1 else X_p[idx_eom_pos, :]
+        )
+        dv_eom_neg = (
+            np.zeros(k_params, dtype=np.complex128) if idx_eom_neg == -1 else X_p[idx_eom_neg, :]
+        )
+        dv_eom = dv_eom_pos - dv_eom_neg
+
+    # 7. Per-element voltage derivatives: dV_elem/dp = dV[pos]/dp - dV[neg]/dp
+    element_voltage_derivs: dict[str, np.ndarray] = {}
+    for elem in graph.elements.values():
+        ep = elem.node_pos
+        en = elem.node_neg
+        dv_ep = (
+            np.zeros(k_params, dtype=np.complex128)
+            if ep == graph.ground_node_id
+            else X_p[node_map[ep], :]
+        )
+        dv_en = (
+            np.zeros(k_params, dtype=np.complex128)
+            if en == graph.ground_node_id
+            else X_p[node_map[en], :]
+        )
+        element_voltage_derivs[elem.id] = dv_ep - dv_en
+
     return ObservableDerivatives(
         v_port=dv_port,
         i_port=di_port,
         z_in=dz_in,
         gamma=dgamma,
         p_delivered=dp_delivered,
+        v_eom=dv_eom,
+        element_voltage_derivs=element_voltage_derivs,
     )

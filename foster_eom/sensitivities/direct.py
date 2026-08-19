@@ -3,6 +3,7 @@ import scipy.linalg
 
 from foster_eom.circuit.mna import FactorizedMNAState
 
+
 def compute_direct_state_sensitivities(
     state: FactorizedMNAState,
     Y_p_list: list[np.ndarray],
@@ -27,15 +28,15 @@ def compute_direct_state_sensitivities(
     if not Y_p_list:
         n = state.V_nominal.shape[0]
         return np.zeros((n, 0), dtype=np.complex128)
-        
+
     n = state.V_nominal.shape[0]
     k = len(Y_p_list)
-    
+
     RHS = np.zeros((n, k), dtype=np.complex128)
     V = state.V_nominal
-    
+
     for i, Y_p in enumerate(Y_p_list):
         RHS[:, i] = -(Y_p @ V)
-        
+
     X_p = scipy.linalg.lu_solve(state.lu_and_piv, RHS)
     return np.asarray(X_p)

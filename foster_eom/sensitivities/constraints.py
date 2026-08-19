@@ -162,6 +162,8 @@ def compute_layout_jacobian(
             sol = target_solutions[desc.freq_index]
             obs = target_observables.get(desc.freq_index)
 
-        J[i, :] = compute_constraint_jacobian_row(desc, sol, obs, mapper, x, l_max, c_max, sep_b1, sep_b2)
+        J[i, :] = compute_constraint_jacobian_row(
+            desc, sol, obs, mapper, x, l_max, c_max, sep_b1, sep_b2
+        )
 
     return J

@@ -63,11 +63,11 @@ def stamp_inductor_derivative(
     assert element.value is not None
 
     omega = 2.0 * np.pi * f_hz
-    
+
     # y = 1 / (j * omega * L)
     # dy/dL = -1 / (j * omega * L^2)
-    z_l_sq = np.complex128(1j * omega * (element.value ** 2))
-    
+    z_l_sq = np.complex128(1j * omega * (element.value**2))
+
     with np.errstate(divide="ignore", invalid="ignore"):
         dy_dL = complex(np.complex128(-1.0) / z_l_sq)
 

@@ -3,6 +3,7 @@ import scipy.linalg
 
 from foster_eom.circuit.mna import FactorizedMNAState
 
+
 def compute_adjoint_state(
     state: FactorizedMNAState,
     q: np.ndarray,
@@ -27,6 +28,7 @@ def compute_adjoint_state(
     RHS = 2.0 * q
     lam = scipy.linalg.lu_solve(state.lu_and_piv, RHS, trans=2)
     return np.asarray(lam)
+
 
 def compute_adjoint_gradient(
     lam: np.ndarray,
@@ -55,22 +57,22 @@ def compute_adjoint_gradient(
     """
     k = len(Y_p_list)
     is_1d = lam.ndim == 1
-    
+
     if not Y_p_list:
         if is_1d:
             return np.zeros(0, dtype=np.float64)
         m = lam.shape[1]
         return np.zeros((m, 0), dtype=np.float64)
-        
+
     m = 1 if is_1d else lam.shape[1]
     grad = np.zeros((m, k), dtype=np.float64)
-    
+
     lam_H = lam.conj().T if not is_1d else lam.conj().reshape(1, -1)
-    
+
     for i, Y_p in enumerate(Y_p_list):
         term = -(Y_p @ V_nominal)
         grad[:, i] = np.real(lam_H @ term)
-        
+
     if is_1d:
         return grad[0, :]
     return grad

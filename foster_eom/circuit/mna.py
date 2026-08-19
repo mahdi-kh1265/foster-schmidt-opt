@@ -301,6 +301,7 @@ def solve_mna_factorized(
         Diagnostic details.
     """
     import scipy.linalg
+
     import foster_eom.optimize.perf as _perf
 
     _p = _perf.get_perf_stats()

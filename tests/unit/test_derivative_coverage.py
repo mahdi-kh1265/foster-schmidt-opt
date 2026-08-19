@@ -1,10 +1,10 @@
-import pytest
 from foster_eom.sensitivities.coverage import (
+    CoordinateConstraintKind,
     DerivativeRoute,
     MNAStampKind,
-    CoordinateConstraintKind,
-    get_derivative_coverage
+    get_derivative_coverage,
 )
+
 
 def test_logk0_coverage():
     cov = get_derivative_coverage("logk0")
@@ -12,11 +12,13 @@ def test_logk0_coverage():
     assert cov.mna_stamps == (MNAStampKind.CAPACITOR,)
     assert not cov.coordinate_constraints
 
+
 def test_logkinf_coverage():
     cov = get_derivative_coverage("logkinf")
     assert cov.route == DerivativeRoute.MNA_DERIVED
     assert cov.mna_stamps == (MNAStampKind.INDUCTOR,)
     assert not cov.coordinate_constraints
+
 
 def test_logkm_coverage():
     cov = get_derivative_coverage("logkm")
@@ -25,11 +27,13 @@ def test_logkm_coverage():
     assert MNAStampKind.INDUCTOR in cov.mna_stamps
     assert not cov.coordinate_constraints
 
+
 def test_fp_coverage():
     cov = get_derivative_coverage("fp")
     assert cov.route == DerivativeRoute.COMBINED
     assert cov.mna_stamps == (MNAStampKind.INDUCTOR,)
     assert CoordinateConstraintKind.POLE_SEPARATION in cov.coordinate_constraints
+
 
 def test_unknown_variable_is_unsupported():
     cov = get_derivative_coverage("unknown_future_var")

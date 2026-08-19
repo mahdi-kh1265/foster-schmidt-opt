@@ -47,6 +47,7 @@ class ElementMeasurement:
     """
 
     element_id: str
+    element_kind: ElementKind
     voltage: complex
     current: complex
     complex_power: complex
@@ -225,6 +226,7 @@ def compute_measurements(
         s_elem = v_elem * np.conj(i_elem)
         element_measurements[elem.id] = ElementMeasurement(
             element_id=elem.id,
+            element_kind=elem.kind,
             voltage=v_elem,
             current=i_elem,
             complex_power=s_elem,
