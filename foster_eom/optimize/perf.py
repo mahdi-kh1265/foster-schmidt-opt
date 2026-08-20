@@ -10,6 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -47,6 +48,10 @@ class PerfStats:
     basin_njev: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     basin_nfev: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     basin_success: dict[str, bool] = field(default_factory=dict)
+
+    # P12.5-E: full per-basin polish telemetry (PolishTelemetry instances).
+    # Typed loosely to keep this module free of optimize-layer imports.
+    basin_telemetry: dict[str, Any] = field(default_factory=dict)
 
     # Active context for attribution
     current_phase: str | None = None

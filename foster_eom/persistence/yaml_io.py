@@ -28,6 +28,7 @@ from foster_eom.domain.eom import EOMModelSpec, EOMModelType, MotionalBranch
 from foster_eom.domain.frequency_plan import FrequencyPlan, FrequencyTarget
 from foster_eom.domain.objectives import (
     AnalysisSpec,
+    DerivativeMode,
     ExportSpec,
     GlobalMethod,
     LocalMethod,
@@ -304,6 +305,7 @@ def _spec_to_dict(spec: ProjectSpec) -> dict[str, Any]:
             "fallback_method": opt.local_fallback_method.value,
             "polish_top_k": opt.polish_top_k,
             "max_iterations": opt.local_max_iterations,
+            "derivative_mode": opt.local_derivative_mode.value,
         },
         "feasibility_first": opt.feasibility_first,
         "checkpoint_every_evaluations": opt.checkpoint_every_evaluations,
@@ -548,6 +550,7 @@ def _dict_to_spec(data: dict[str, Any]) -> ProjectSpec:
         local_method=LocalMethod(loc_data.get("preferred_method", "ipopt")),
         local_fallback_method=LocalMethod(loc_data.get("fallback_method", "trust-constr")),
         local_max_iterations=loc_data.get("max_iterations", 1500),
+        local_derivative_mode=DerivativeMode(loc_data.get("derivative_mode", "reference_fd")),
         feasibility_first=opt_data.get("feasibility_first", True),
         checkpoint_every_evaluations=opt_data.get("checkpoint_every_evaluations", 5000),
     )

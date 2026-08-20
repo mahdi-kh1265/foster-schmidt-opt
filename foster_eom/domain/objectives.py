@@ -21,6 +21,19 @@ class LocalMethod(enum.StrEnum):
     SLSQP = "slsqp"
 
 
+class DerivativeMode(enum.StrEnum):
+    """Source of the derivatives supplied to the local solver (P12.5-E).
+
+    ``REFERENCE_FD`` is the frozen P05 behaviour: SciPy differentiates the
+    objective and the nonlinear constraints numerically.  ``ANALYTICAL`` supplies
+    the validated P12.5-D ``DerivativeTransaction`` Jacobians instead.  The
+    objective and constraint *values* are identical in both modes.
+    """
+
+    REFERENCE_FD = "reference_fd"
+    ANALYTICAL = "analytical"
+
+
 class OptimizationPreset(enum.StrEnum):
     """Pre-configured optimization intensity levels."""
 
@@ -100,6 +113,13 @@ class OptimizationSpec(BaseModel, frozen=True):
     objective_weight_loss: float = Field(default=0.0, ge=0.0)
     #: Objective weight for topology complexity term J_complexity (constant within domain).
     objective_weight_complexity: float = Field(default=0.0, ge=0.0)
+
+    # ---- P12.5-E addition (backward-compatible; default preserves frozen FD) ----
+
+    #: Derivative source for local polish.  ``REFERENCE_FD`` is the frozen P05
+    #: behaviour and remains the default; ``ANALYTICAL`` opts into the validated
+    #: P12.5-D sensitivity transaction.
+    local_derivative_mode: DerivativeMode = DerivativeMode.REFERENCE_FD
 
 
 class TimeDomainPhaseMode(enum.StrEnum):

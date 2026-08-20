@@ -14,6 +14,7 @@ from foster_eom.sensitivities.constraints import compute_layout_jacobian
 from foster_eom.sensitivities.direct import compute_direct_state_sensitivities
 from foster_eom.sensitivities.foster_mapping import dC0_dx, dCm_dxkm, dLinf_dx, dLm_dxfp, dLm_dxkm
 from foster_eom.sensitivities.objective_gradient import (
+    DerivativeStatus,
     ObjectiveGradientResult,
     compute_objective_gradient,
 )
@@ -110,6 +111,14 @@ class DerivativeTransaction:
         self._j_constr: np.ndarray | None = None
         self._obj_grad_result: ObjectiveGradientResult | None = None
 
+        # ---- P12.5-E: additive read-only coverage surface -------------------
+        # Which nominal solves actually succeeded for the current x.  Consumers
+        # need this because a failed nominal solve is skipped silently below,
+        # which leaves the corresponding Jacobian rows at zero.  Recording it
+        # changes no mathematics.
+        self._solved_target_indices: set[int] = set()
+        self._solved_off_target_indices: set[int] = set()
+
         self.metrics = {
             "factorizations": 0,
             "direct_substitutions": 0,
@@ -117,11 +126,38 @@ class DerivativeTransaction:
             "jacobian_evals": 0,
         }
 
+    @property
+    def last_status(self) -> DerivativeStatus | None:
+        """Derivative validity status of the most recent Jacobian build."""
+        return self._obj_grad_result.status if self._obj_grad_result is not None else None
+
+    @property
+    def last_result(self) -> ObjectiveGradientResult | None:
+        """The most recent objective-gradient result (status + term names)."""
+        return self._obj_grad_result
+
+    @property
+    def current_x(self) -> np.ndarray | None:
+        """The parameter vector the cached heavy state belongs to (copy-on-write)."""
+        return self._x
+
+    @property
+    def solved_target_indices(self) -> frozenset[int]:
+        """Target frequency indices whose nominal solve succeeded for current x."""
+        return frozenset(self._solved_target_indices)
+
+    @property
+    def solved_off_target_indices(self) -> frozenset[int]:
+        """Off-target frequency indices whose nominal solve succeeded for current x."""
+        return frozenset(self._solved_off_target_indices)
+
     def _invalidate_cache(self, x: np.ndarray) -> None:
         self._x = x.copy()
         self._j_base = None
         self._j_constr = None
         self._obj_grad_result = None
+        self._solved_target_indices = set()
+        self._solved_off_target_indices = set()
 
     def evaluate_jacobians(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return (j_base, j_constr) for x, caching appropriately."""
@@ -160,6 +196,7 @@ class DerivativeTransaction:
 
             if status != CircuitSolveStatus.OK or state is None:
                 continue
+            self._solved_target_indices.add(fi)
 
             y_p_list = build_y_p_list(graph, node_map, mapper, x, f_hz)
 
@@ -265,6 +302,7 @@ class DerivativeTransaction:
 
             if status != CircuitSolveStatus.OK or state is None:
                 continue
+            self._solved_off_target_indices.add(fi)
 
             y_p_list = build_y_p_list(graph, node_map, mapper, x, f_hz)
             grad = compute_v_eom_adjoint_gradient(graph, node_map, state, y_p_list)
