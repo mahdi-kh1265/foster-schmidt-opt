@@ -91,18 +91,18 @@ def test_derivative_transaction_caching(monkeypatch):
     x_val = np.array([0.5, 0.5, 0.5])  # logk0, logkm, fp
 
     # Evaluate
-    j_base, j_constr = txn.evaluate_jacobians(x_val)
+    _j_base, _j_constr = txn.evaluate_jacobians(x_val)
 
     assert txn.metrics["jacobian_evals"] == 1
     assert txn.metrics["factorizations"] == 1
 
     # Second evaluation with same x should hit cache
-    j_base_2, j_constr_2 = txn.evaluate_jacobians(x_val)
+    _j_base_2, _j_constr_2 = txn.evaluate_jacobians(x_val)
     assert txn.metrics["jacobian_evals"] == 1  # unchanged!
     assert txn.metrics["factorizations"] == 1
 
     # New x triggers re-evaluation
     x_new = np.array([0.6, 0.5, 0.5])
-    j_base_3, j_constr_3 = txn.evaluate_jacobians(x_new)
+    _j_base_3, _j_constr_3 = txn.evaluate_jacobians(x_new)
     assert txn.metrics["jacobian_evals"] == 2
     assert txn.metrics["factorizations"] == 2

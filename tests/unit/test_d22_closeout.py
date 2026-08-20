@@ -272,7 +272,7 @@ class TestViolatedSoft:
         txn = DerivativeTransaction(ctx)
         grad_ana, _ = txn.evaluate_jacobians(self.X0)
         grad_fd = _central_fd(ctx, self.X0)
-        m = _report("violated_soft_comp", grad_ana, grad_fd)
+        _report("violated_soft_comp", grad_ana, grad_fd)
         np.testing.assert_allclose(grad_ana, grad_fd, rtol=2e-2, atol=1e-8)
 
     def test_directional(self):
@@ -318,7 +318,7 @@ class TestInactiveSoft:
         txn = DerivativeTransaction(ctx)
         grad_ana, _ = txn.evaluate_jacobians(self.X0)
         grad_fd = _central_fd(ctx, self.X0)
-        m = _report("inactive_soft_comp", grad_ana, grad_fd)
+        _report("inactive_soft_comp", grad_ana, grad_fd)
         np.testing.assert_allclose(grad_ana, grad_fd, rtol=2e-2, atol=1e-8)
 
     def test_equals_no_soft_baseline(self):
@@ -358,7 +358,7 @@ class TestSoftOnly:
         txn = DerivativeTransaction(ctx)
         grad_ana, _ = txn.evaluate_jacobians(self.X0)
         grad_fd = _central_fd(ctx, self.X0)
-        m = _report("soft_only_comp", grad_ana, grad_fd)
+        _report("soft_only_comp", grad_ana, grad_fd)
         np.testing.assert_allclose(grad_ana, grad_fd, rtol=2e-2, atol=1e-8)
 
     def test_directional(self):
@@ -419,7 +419,7 @@ class TestLossPlusSoft:
         txn = DerivativeTransaction(ctx)
         grad_ana, _ = txn.evaluate_jacobians(self.X0)
         grad_fd = _central_fd(ctx, self.X0)
-        m = _report("loss_plus_soft_comp", grad_ana, grad_fd)
+        _report("loss_plus_soft_comp", grad_ana, grad_fd)
         np.testing.assert_allclose(grad_ana, grad_fd, rtol=2e-2, atol=1e-8)
 
     def test_directional(self):

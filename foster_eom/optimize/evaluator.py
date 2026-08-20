@@ -13,6 +13,7 @@ Numerical failure semantics:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -20,7 +21,7 @@ import numpy as np
 from foster_eom.circuit.graph import CircuitGraph
 from foster_eom.circuit.measurements import CircuitSolution
 from foster_eom.circuit.mna import SolverOptions
-from foster_eom.circuit.solve import solve_circuit_single
+from foster_eom.circuit.solve import solve_circuit_single, solve_circuit_single_with_state
 from foster_eom.domain.component import ContinuousLimits
 from foster_eom.domain.constraints import MatchConstraints, StressConstraints
 from foster_eom.domain.source import SourceSpec
@@ -30,6 +31,7 @@ from foster_eom.foster.sign_search import SignPattern
 from foster_eom.models.base import OnePortModel
 from foster_eom.optimize.constraints import ConstraintLayout, compile_constraint_layout
 from foster_eom.optimize.domain import ContinuousOptimizationDomain
+from foster_eom.optimize.nominal_state import NominalStateBundle, NominalStateExchange
 from foster_eom.optimize.objective import ObjectiveConfig, compute_objective
 from foster_eom.optimize.variable_map import BranchCoordinates
 
@@ -131,10 +133,19 @@ class EvaluationContext:
 
 
 class DomainEvaluatorCache:
-    """Per-domain cache mapping normalized x → EvaluationResult."""
+    """Per-domain cache mapping normalized x → EvaluationResult.
+
+    ``nominal_exchange`` (P12.5-F) is an additive, opt-in side channel: when an
+    analytical derivative consumer attaches one and enables it, ``evaluate()``
+    publishes the nominal per-frequency MNA state of the *current* iterate so
+    the sensitivity transaction does not have to sweep the grid a second time.
+    It is ``None`` by default, and the ``REFERENCE_FD`` path never attaches one,
+    so the frozen evaluation path is unaffected.
+    """
 
     def __init__(self) -> None:
         self._cache: dict[tuple[float, ...], EvaluationResult] = {}
+        self.nominal_exchange: NominalStateExchange | None = None
         self.n_calls: int = 0
         self.n_unique_evaluations: int = 0
         self.n_cache_hits: int = 0
@@ -173,8 +184,15 @@ class DomainEvaluatorCache:
 # ---------------------------------------------------------------------------
 
 
+def canonical_x(x: Sequence[float] | np.ndarray) -> tuple[np.ndarray, tuple[float, ...]]:
+    """Return the authoritative clipped coordinate array and its exact tuple key."""
+    x_eval = np.clip(np.asarray(x, dtype=np.float64), 0.0, 1.0)
+    x_key = tuple(float(v) for v in x_eval)
+    return x_eval, x_key
+
+
 def evaluate(
-    x: np.ndarray,
+    x: Sequence[float] | np.ndarray,
     context: EvaluationContext,
     cache: DomainEvaluatorCache,
     compute_coarse: bool | None = None,
@@ -191,14 +209,19 @@ def evaluate(
         Override coarse-grid evaluation.  If None, uses
         ``context.requires_coarse_for_hard_soft``.
     """
-    x = np.clip(np.asarray(x, dtype=np.float64), 0.0, 1.0)
-    x_key = tuple(x.tolist())
+    x_eval, x_key = canonical_x(x)
 
     cached = cache.get(x_key)
     if cached is not None:
         return cached
 
-    result = _evaluate_uncached(x, x_key, context, compute_coarse)
+    exchange = cache.nominal_exchange
+    result = _evaluate_uncached(x_eval, x_key, context, compute_coarse, exchange)
+    if exchange is not None:
+        # Only a fully successful nominal sweep may be published; every failure
+        # branch drops the bundle so the derivative path recomputes it under the
+        # existing safe code path.
+        exchange.settle(result.numerical_status == "ok")
     n_target = len(context.target_indices)
     n_coarse = len(context.evaluation_frequencies_hz) - n_target if result.coarse_evaluated else 0
     cache.put(x_key, result, n_target, n_coarse)
@@ -210,6 +233,7 @@ def _evaluate_uncached(
     x_key: tuple[float, ...],
     context: EvaluationContext,
     compute_coarse: bool | None,
+    exchange: NominalStateExchange | None = None,
 ) -> EvaluationResult:
     """Perform the actual evaluation without cache."""
     domain = context.domain
@@ -252,13 +276,25 @@ def _evaluate_uncached(
             reason=f"graph build failed: {exc}",
         )
 
+    # -- Open the current-iterate nominal state bundle (P12.5-F, opt-in) --
+    bundle: NominalStateBundle | None = None
+    if exchange is not None:
+        bundle = exchange.begin(x_key, context, graph)
+
     # -- Solve target frequencies --
     target_solutions: list[CircuitSolution] = []
     opts = SolverOptions()
     for fi in context.target_indices:
         f_hz = context.evaluation_frequencies_hz[fi]
         try:
-            sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
+            if bundle is None:
+                sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
+            else:
+                sol, system = solve_circuit_single_with_state(
+                    graph, context.source_spec, f_hz, opts
+                )
+                if system is not None:
+                    exchange.record(bundle, fi, system)  # type: ignore[union-attr]
         except np.linalg.LinAlgError as exc:
             return _failure_result(
                 x_key,
@@ -304,7 +340,14 @@ def _evaluate_uncached(
                 continue
             f_hz = context.evaluation_frequencies_hz[fi]
             try:
-                sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
+                if bundle is None:
+                    sol = solve_circuit_single(graph, context.source_spec, f_hz, opts)
+                else:
+                    sol, system = solve_circuit_single_with_state(
+                        graph, context.source_spec, f_hz, opts
+                    )
+                    if system is not None:
+                        exchange.record(bundle, fi, system)  # type: ignore[union-attr]
             except np.linalg.LinAlgError as exc:
                 return _failure_result(
                     x_key,

@@ -1,7 +1,13 @@
 import numpy as np
 
 from foster_eom.circuit.graph import CircuitGraph, ElementKind
-from foster_eom.circuit.mna import assemble_mna, solve_mna_factorized
+from foster_eom.circuit.mna import (
+    FactorizedMNAState,
+    SolveDiagnostics,
+    assemble_mna,
+    refactorize_shared_mna,
+    solve_mna_factorized,
+)
 from foster_eom.errors import CircuitSolveStatus
 from foster_eom.optimize.evaluator import (
     EvaluationContext,
@@ -9,6 +15,7 @@ from foster_eom.optimize.evaluator import (
     _get_pole_sep,
     _validate_components,
 )
+from foster_eom.optimize.nominal_state import NominalStateBundle, NominalStateExchange
 from foster_eom.optimize.variable_map import DecisionVariableMapper
 from foster_eom.sensitivities.constraints import compute_layout_jacobian
 from foster_eom.sensitivities.direct import compute_direct_state_sensitivities
@@ -103,8 +110,17 @@ def build_y_p_list(
 class DerivativeTransaction:
     """Manages the lifecycle of sensitivity evaluations for a single parameter vector x."""
 
-    def __init__(self, context: EvaluationContext):
+    def __init__(
+        self,
+        context: EvaluationContext,
+        *,
+        exchange: NominalStateExchange | None = None,
+    ):
         self.context = context
+        #: P12.5-F: optional current-iterate nominal state channel published by
+        #: the production ``evaluate()``.  ``None`` (the default) reproduces the
+        #: P12.5-E behaviour exactly: every frequency is assembled and solved here.
+        self._exchange = exchange
         self._x: np.ndarray | None = None
 
         self._j_base: np.ndarray | None = None
@@ -119,11 +135,24 @@ class DerivativeTransaction:
         self._solved_target_indices: set[int] = set()
         self._solved_off_target_indices: set[int] = set()
 
+        # Counter meanings (P12.5-F makes them explicit):
+        #   factorizations        - LU factorizations performed here, total.
+        #   nominal_sweep_solves  - frequencies this transaction had to assemble
+        #                           *and* screen itself, i.e. the duplicate
+        #                           nominal sweep P12.5-F removes.
+        #   nominal_states_reused - frequencies whose assembled/screened nominal
+        #                           state came from the production evaluator.
+        #   bundle_hits/misses    - Jacobian builds that did / did not find the
+        #                           current-iterate nominal state bundle.
         self.metrics = {
             "factorizations": 0,
             "direct_substitutions": 0,
             "adjoint_substitutions": 0,
             "jacobian_evals": 0,
+            "nominal_sweep_solves": 0,
+            "nominal_states_reused": 0,
+            "bundle_hits": 0,
+            "bundle_misses": 0,
         }
 
     @property
@@ -159,7 +188,41 @@ class DerivativeTransaction:
         self._solved_target_indices = set()
         self._solved_off_target_indices = set()
 
-    def evaluate_jacobians(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _nominal_state(
+        self,
+        bundle: NominalStateBundle | None,
+        freq_index: int,
+        graph: CircuitGraph,
+        f_hz: float,
+    ) -> tuple[FactorizedMNAState | None, CircuitSolveStatus, SolveDiagnostics, dict[str, int]]:
+        """Return the factorized nominal state for one frequency.
+
+        Reuses the production evaluator's assembled and screened system when the
+        current-iterate bundle carries it, and otherwise falls back to the
+        P12.5-E path (assemble + full multi-criterion factorized solve).  Both
+        branches perform their own LU factorization and back-substitution, so the
+        factorization, solution-finiteness and residual semantics are identical.
+        """
+        shared = bundle.get(freq_index) if bundle is not None else None
+        if shared is not None:
+            state, status, diagnostics = refactorize_shared_mna(
+                shared.y, shared.b, shared.diagnostics.condition_number
+            )
+            self.metrics["factorizations"] += 1
+            self.metrics["nominal_states_reused"] += 1
+            if self._exchange is not None:
+                self._exchange.note_reuse()
+            return state, status, diagnostics, shared.node_map
+
+        y_nom, b_nom, node_map = assemble_mna(graph, self.context.source_spec, f_hz)
+        state, status, diagnostics = solve_mna_factorized(y_nom, b_nom)
+        self.metrics["factorizations"] += 1
+        self.metrics["nominal_sweep_solves"] += 1
+        return state, status, diagnostics, node_map
+
+    def evaluate_jacobians(
+        self, x: np.ndarray, x_key: tuple[float, ...] | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Return (j_base, j_constr) for x, caching appropriately."""
         if (
             self._x is not None
@@ -175,13 +238,30 @@ class DerivativeTransaction:
         mapper = self.context.domain.variable_mapper
         b1, b2 = mapper.unpack(x)
         _validate_components(b1, b2)
-        graph = _build_graph(
-            b1,
-            b2,
-            self.context.domain,
-            self.context.eom_model,
-            self.context.domain.canonical_sign_pattern,
-        )
+
+        # ---- P12.5-F: current-iterate nominal state reuse ------------------
+        bundle: NominalStateBundle | None = None
+        if self._exchange is not None:
+            if x_key is None:
+                x_key = tuple(float(v) for v in x)
+            bundle = self._exchange.lookup(x_key, self.context)
+        if bundle is None:
+            self.metrics["bundle_misses"] += 1
+        else:
+            self.metrics["bundle_hits"] += 1
+
+        if bundle is not None:
+            # The bundle was assembled from a graph built by ``_build_graph``
+            # from this very ``x`` and context, so it is the same netlist.
+            graph = bundle.graph
+        else:
+            graph = _build_graph(
+                b1,
+                b2,
+                self.context.domain,
+                self.context.eom_model,
+                self.context.domain.canonical_sign_pattern,
+            )
 
         target_observables = {}
         off_target_gradients = {}
@@ -190,9 +270,7 @@ class DerivativeTransaction:
         # Target frequencies (Direct)
         for _ti, fi in enumerate(self.context.target_indices):
             f_hz = self.context.evaluation_frequencies_hz[fi]
-            y_nom, b_nom, node_map = assemble_mna(graph, self.context.source_spec, f_hz)
-            state, status, diagnostics = solve_mna_factorized(y_nom, b_nom)
-            self.metrics["factorizations"] += 1
+            state, status, diagnostics, node_map = self._nominal_state(bundle, fi, graph, f_hz)
 
             if status != CircuitSolveStatus.OK or state is None:
                 continue
@@ -296,9 +374,7 @@ class DerivativeTransaction:
         # Off-target frequencies (Adjoint)
         for fi in self.context.off_target_indices:
             f_hz = self.context.evaluation_frequencies_hz[fi]
-            y_nom, b_nom, node_map = assemble_mna(graph, self.context.source_spec, f_hz)
-            state, status, _ = solve_mna_factorized(y_nom, b_nom)
-            self.metrics["factorizations"] += 1
+            state, status, _, node_map = self._nominal_state(bundle, fi, graph, f_hz)
 
             if status != CircuitSolveStatus.OK or state is None:
                 continue

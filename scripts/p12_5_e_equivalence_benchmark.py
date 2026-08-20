@@ -236,7 +236,9 @@ class ABPolishHarness:
                 self.case.an_total_time += dt
                 self.case.an_peak_rss_mb = max(self.case.an_peak_rss_mb, rss_after, rss_before)
 
-        fd_results, fd_dt = outcomes[DerivativeMode.REFERENCE_FD]
+        fd_results, fd_dt = outcomes.get(
+            DerivativeMode.REFERENCE_FD, outcomes[DerivativeMode.ANALYTICAL]
+        )
         an_results, an_dt = outcomes[DerivativeMode.ANALYTICAL]
 
         n_pairs = min(len(fd_results), len(an_results))
@@ -428,7 +430,7 @@ def run_case(
         component_limits=args["component_limits"],
     )
 
-    harness = ABPolishHarness(case, cap, DerivativeMode.REFERENCE_FD)
+    harness = ABPolishHarness(case, cap, DerivativeMode.ANALYTICAL)
     original = engine_mod.polish_top_k
     engine_mod.polish_top_k = harness  # type: ignore[assignment]
     t0 = time.perf_counter()

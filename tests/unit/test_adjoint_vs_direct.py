@@ -117,7 +117,7 @@ def test_direct_vs_adjoint_vs_fd():
         sol = solve_circuit_single(graph, source, f_hz, SolverOptions())
         return abs(sol.v_eom)
 
-    v0 = eval_v_eom(x0)
+    eval_v_eom(x0)
 
     # 1. Finite Differences
     eps = 1e-6
@@ -146,14 +146,12 @@ def test_direct_vs_adjoint_vs_fd():
     # The EOM node index
     v_eom = sol.v_eom
     eom_node_name = "load"
-    try:
-        eom_idx = node_map[eom_node_name]
-    except KeyError:
-        eom_idx = 1  # heuristic
+    import contextlib
+    with contextlib.suppress(KeyError):
+        node_map[eom_node_name]
 
     # We need the full x_state vector which MNA solver solved for
-    V, status, _ = solve_mna(Y, I_vec, SolverOptions())
-    x_state = V
+    _V, _status, _ = solve_mna(Y, I_vec, SolverOptions())
 
     # Adjoint
     from foster_eom.circuit.mna import solve_mna_factorized

@@ -72,6 +72,20 @@ class PolishTelemetry:
     direct_substitutions: int = 0
     adjoint_substitutions: int = 0
 
+    # P12.5-F nominal-work accounting (zero in REFERENCE_FD).
+    #   transaction_nominal_sweep_solves  - frequencies the transaction had to
+    #       assemble and screen itself (the former duplicate nominal sweep).
+    #   transaction_nominal_states_reused - frequencies whose assembled/screened
+    #       nominal state came from the production evaluator.
+    transaction_nominal_sweep_solves: int = 0
+    transaction_nominal_states_reused: int = 0
+    nominal_bundle_hits: int = 0
+    nominal_bundle_misses: int = 0
+    nominal_states_captured: int = 0
+    nominal_bundles_published: int = 0
+    nominal_bundles_dropped: int = 0
+    nominal_peak_retained_states: int = 0
+
     # Nominal MNA work performed through the production evaluator
     evaluator_unique_evaluations: int = 0
     evaluator_target_freq_solves: int = 0
@@ -218,8 +232,12 @@ def _run_polish(
 
     provider: AnalyticalDerivativeProvider | None = None
     if mode == DerivativeMode.ANALYTICAL:
-        provider = AnalyticalDerivativeProvider(context)
-        provider.preflight(x0)
+        provider = AnalyticalDerivativeProvider(context, cache)
+        try:
+            provider.preflight(x0)
+        except DerivativeUnavailable:
+            provider.release()
+            raise
         obj_jac: Any = provider.objective_jac
         nlc = NonlinearConstraint(_g_vec, lb=0.0, ub=np.inf, jac=provider.constraint_jac)
     else:
@@ -250,7 +268,10 @@ def _run_polish(
         reason = None
     except DerivativeUnavailable:
         # Derivative problem, not a numerical polish failure — let the caller
-        # fall this candidate back to REFERENCE_FD.
+        # fall this candidate back to REFERENCE_FD.  Release the shared nominal
+        # state first so the FD reference run neither captures nor sees it.
+        if provider is not None:
+            provider.release()
         raise
     except Exception as exc:
         # Polish failed — retain pre-polish
@@ -275,8 +296,19 @@ def _run_polish(
             "factorizations": 0,
             "direct_substitutions": 0,
             "adjoint_substitutions": 0,
+            "transaction_nominal_sweep_solves": 0,
+            "transaction_nominal_states_reused": 0,
+            "nominal_bundle_hits": 0,
+            "nominal_bundle_misses": 0,
+            "nominal_states_captured": 0,
+            "nominal_bundles_published": 0,
+            "nominal_bundles_dropped": 0,
+            "nominal_peak_retained_states": 0,
         }
     )
+    if provider is not None:
+        # Heavy nominal state is scoped to this polish run only.
+        provider.release()
 
     def _as_int(value: Any) -> int:
         try:
@@ -309,6 +341,14 @@ def _run_polish(
         factorizations=prov_metrics["factorizations"],
         direct_substitutions=prov_metrics["direct_substitutions"],
         adjoint_substitutions=prov_metrics["adjoint_substitutions"],
+        transaction_nominal_sweep_solves=prov_metrics.get("transaction_nominal_sweep_solves", 0),
+        transaction_nominal_states_reused=prov_metrics.get("transaction_nominal_states_reused", 0),
+        nominal_bundle_hits=prov_metrics.get("nominal_bundle_hits", 0),
+        nominal_bundle_misses=prov_metrics.get("nominal_bundle_misses", 0),
+        nominal_states_captured=prov_metrics.get("nominal_states_captured", 0),
+        nominal_bundles_published=prov_metrics.get("nominal_bundles_published", 0),
+        nominal_bundles_dropped=prov_metrics.get("nominal_bundles_dropped", 0),
+        nominal_peak_retained_states=prov_metrics.get("nominal_peak_retained_states", 0),
         evaluator_unique_evaluations=_as_int(n_evals),
         evaluator_target_freq_solves=_as_int(
             cache.target_frequency_point_solves - target_solves_before

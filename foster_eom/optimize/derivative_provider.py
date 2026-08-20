@@ -14,15 +14,20 @@ Design contract
   coverage, non-finite entry, or shape mismatch raises
   :class:`DerivativeUnavailable` so the caller can fall back to the frozen FD
   path for that candidate.  A partially-populated Jacobian is never returned.
-* No cross-reuse of nominal MNA state between ``evaluate()`` and the transaction
-  is attempted here; that duplicate sweep is measured in P12.5-E and left for F.
+* P12.5-F: the transaction reuses the nominal per-frequency MNA state the
+  production ``evaluate()`` already computed for the *current* iterate, via the
+  :class:`~foster_eom.optimize.nominal_state.NominalStateExchange` attached to
+  the shared :class:`DomainEvaluatorCache`.  Reuse requires exact identity of
+  ``u``, context, domain and frequency grid; anything else re-solves.  Only
+  ``ANALYTICAL`` attaches an exchange, so ``REFERENCE_FD`` is untouched.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from foster_eom.optimize.evaluator import EvaluationContext
+from foster_eom.optimize.evaluator import DomainEvaluatorCache, EvaluationContext
+from foster_eom.optimize.nominal_state import NominalStateExchange
 from foster_eom.sensitivities.objective_gradient import (
     DerivativeStatus,
     check_analytical_support,
@@ -61,11 +66,31 @@ class AnalyticalDerivativeProvider:
     ----------
     context : EvaluationContext
         The same frozen context the production evaluator uses.
+    cache : DomainEvaluatorCache | None
+        The same cache the production objective/constraint callbacks use.  When
+        given, a :class:`NominalStateExchange` is attached to it so the current
+        iterate's nominal MNA state is shared instead of swept twice (P12.5-F).
+        When ``None``, the transaction sweeps the grid itself exactly as in
+        P12.5-E.
     """
 
-    def __init__(self, context: EvaluationContext) -> None:
+    def __init__(
+        self,
+        context: EvaluationContext,
+        cache: DomainEvaluatorCache | None = None,
+    ) -> None:
         self.context = context
-        self.transaction = DerivativeTransaction(context)
+        self.cache = cache
+
+        exchange: NominalStateExchange | None = None
+        if cache is not None:
+            exchange = cache.nominal_exchange
+            if exchange is None:
+                exchange = NominalStateExchange()
+                cache.nominal_exchange = exchange
+            exchange.enable()
+        self.exchange = exchange
+        self.transaction = DerivativeTransaction(context, exchange=exchange)
 
         self.n_params: int = context.domain.variable_mapper.dimension
         self.n_hard: int = context.hard_layout.n
@@ -123,15 +148,22 @@ class AnalyticalDerivativeProvider:
 
     def _ensure(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Build (or reuse) the current-``u`` transaction and validate it."""
-        # Clip exactly as ``evaluate()`` does, so values and derivatives are
-        # taken at the same point.
-        x_eval = np.clip(np.asarray(x, dtype=np.float64), 0.0, 1.0)
+        from foster_eom.optimize.evaluator import canonical_x, evaluate
+
+        x_eval, x_key = canonical_x(x)
+
+        # SciPy's trust-constr often evaluates Jacobians before the objective.
+        # Force the production evaluator to run first, publishing its nominal state,
+        # so the transaction can reuse it.  SciPy's subsequent objective evaluation
+        # will hit the cache.
+        if self.cache is not None:
+            evaluate(x_eval, self.context, self.cache)
 
         prev_x = self.transaction.current_x
         reused = prev_x is not None and np.array_equal(prev_x, x_eval)
 
         try:
-            j_base, j_constr = self.transaction.evaluate_jacobians(x_eval)
+            j_base, j_constr = self.transaction.evaluate_jacobians(x_eval, x_key=x_key)
         except Exception as exc:  # any build failure means fall back to FD
             raise DerivativeUnavailable(f"construction_failed:{type(exc).__name__}:{exc}") from exc
 
@@ -182,7 +214,7 @@ class AnalyticalDerivativeProvider:
     def metrics_snapshot(self) -> dict[str, int]:
         """Flat counter snapshot for polish telemetry."""
         m = self.transaction.metrics
-        return {
+        snapshot = {
             "transaction_evaluations": self.n_transaction_evaluations,
             "transaction_reuse_hits": self.n_reuse_hits,
             "objective_jac_calls": self.n_objective_jac_calls,
@@ -191,4 +223,17 @@ class AnalyticalDerivativeProvider:
             "factorizations": int(m["factorizations"]),
             "direct_substitutions": int(m["direct_substitutions"]),
             "adjoint_substitutions": int(m["adjoint_substitutions"]),
+            # P12.5-F nominal-work accounting
+            "transaction_nominal_sweep_solves": int(m["nominal_sweep_solves"]),
+            "transaction_nominal_states_reused": int(m["nominal_states_reused"]),
+            "nominal_bundle_hits": int(m["bundle_hits"]),
+            "nominal_bundle_misses": int(m["bundle_misses"]),
         }
+        if self.exchange is not None:
+            snapshot.update(self.exchange.counters())
+        return snapshot
+
+    def release(self) -> None:
+        """Stop capturing and free every retained nominal state bundle."""
+        if self.exchange is not None:
+            self.exchange.disable()

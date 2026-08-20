@@ -243,7 +243,7 @@ class TestNonsmoothClassification:
         from foster_eom.circuit.measurements import CircuitSolution
 
         # Create a solution at perfect match (gamma ≈ 0)
-        source_spec = SourceSpec(mode="thevenin", thevenin_vrms=1.0, z_source_real_ohm=50.0)
+        SourceSpec(mode="thevenin", thevenin_vrms=1.0, z_source_real_ohm=50.0)
         config = ObjectiveConfig(z_ref_ohm=50.0, w_gamma=1.0, w_voltage=0.0, w_loss=0.0)
         soft_layout = ConstraintLayout(descriptors=())
 

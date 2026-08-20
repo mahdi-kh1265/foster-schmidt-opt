@@ -49,8 +49,8 @@ def test_adjoint_gradient_validation():
 
     # 1. Objective J = 0.5 * sum(|V_i|^2) -> W = I
     V = state.V_nominal
-    W = np.eye(len(V))
-    J_nom = 0.5 * np.sum(np.abs(V) ** 2)
+    np.eye(len(V))
+    0.5 * np.sum(np.abs(V) ** 2)
     q = 0.5 * V  # Since J = 0.5 V^H V, dJ/dV* = 0.5 V
 
     # 2. Adjoint

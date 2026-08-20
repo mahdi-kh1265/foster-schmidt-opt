@@ -122,7 +122,7 @@ def test_coordinate_constraint_derivatives():
     sep_b2 = 1e3
 
     # Get production constraint evaluation at x_val
-    layout, g_nom = _eval_coord_constraints(mapper, x_val, l_max, c_max, sep_b1, sep_b2)
+    layout, _g_nom = _eval_coord_constraints(mapper, x_val, l_max, c_max, sep_b1, sep_b2)
 
     # Compute analytical Jacobian
     J_ana = np.zeros((layout.n, mapper.dimension), dtype=np.float64)

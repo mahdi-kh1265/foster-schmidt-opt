@@ -333,8 +333,7 @@ class TestObjectiveValueParity:
         x0 = np.array([0.5, 0.5, 0.5])
 
         # J_production
-        res_prod = evaluate(x0, ctx, DomainEvaluatorCache())
-        j_prod = res_prod.objective_value
+        evaluate(x0, ctx, DomainEvaluatorCache())
 
         # Transaction gradient
         txn = DerivativeTransaction(ctx)

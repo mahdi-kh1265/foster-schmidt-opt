@@ -115,7 +115,7 @@ def test_full_mna_assembly_fd():
 
     source_spec = SourceSpec(mode="thevenin", thevenin_vrms=1.0, z_source=50.0)
 
-    Y_nom, b_nom, node_map = assemble_mna(graph, source_spec, f_hz)
+    Y_nom, _b_nom, node_map = assemble_mna(graph, source_spec, f_hz)
 
     Y_p_C = np.zeros_like(Y_nom)
     Y_p_L = np.zeros_like(Y_nom)

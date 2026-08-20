@@ -108,10 +108,10 @@ def test_e2e_jacobian_fd_matching():
     limits = ContinuousLimits(
         l_min_h=1e-9, l_max_h=1e-6, c_min_f=1e-12, c_max_f=1e-9, i_max_a=1.0, v_max_v=100.0
     )
-    match_c = MatchConstraints(
+    MatchConstraints(
         max_gamma=0.2, enforce_at_all_targets=True, check_passband_edges=False
     )
-    stress_c = StressConstraints(max_voltage_v=100.0, max_current_a=1.0)
+    StressConstraints(max_voltage_v=100.0, max_current_a=1.0)
     obj = ObjectiveConfig(
         z_ref_ohm=50.0,
         w_gamma=1.0,
@@ -162,6 +162,6 @@ def test_e2e_jacobian_fd_matching():
         J_fd[:, i] = (np.array(r_plus.hard_margins) - np.array(r_minus.hard_margins)) / (2 * eps)
 
     txn = DerivativeTransaction(ctx)
-    J_base_ana, J_constr_ana = txn.evaluate_jacobians(x0)
+    _J_base_ana, J_constr_ana = txn.evaluate_jacobians(x0)
 
     np.testing.assert_allclose(J_constr_ana, J_fd, rtol=1e-4, atol=1e-5)

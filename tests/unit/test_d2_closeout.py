@@ -200,7 +200,7 @@ class TestJLossDerivative:
         x0 = np.array([0.5, 0.5, 0.5])
         h = 1e-7
         txn = DerivativeTransaction(ctx)
-        j_base, _ = txn.evaluate_jacobians(x0)
+        _j_base, _ = txn.evaluate_jacobians(x0)
         # Access internal obs from last call - re-evaluate to get them
         # Use the production evaluator to get element voltages at x0±h
         for k in range(len(x0)):
@@ -230,15 +230,15 @@ class TestJLossDerivative:
         source = SourceSpec(mode=SourceMode.THEVENIN, thevenin_vrms=1.0, z_source_real_ohm=50.0)
         f_hz = 1e6
         y_nom, b_nom, node_map = assemble_mna(graph, source, f_hz)
-        state, status, diag = solve_mna_factorized(y_nom, b_nom)
+        state, status, _diag = solve_mna_factorized(y_nom, b_nom)
         assert status == CircuitSolveStatus.OK
 
         # Get nominal element voltages
-        v_n1 = complex(state.V_nominal[node_map["n1"]])
+        complex(state.V_nominal[node_map["n1"]])
         v_n2 = complex(state.V_nominal[node_map["n2"]])
         v_R1 = v_n2 - 0.0j  # R1 is n2 → gnd
         R = 10.0
-        P_R_nom = float(np.real(v_R1 * np.conj(v_R1 / R)))  # = |V_R|^2 / R
+        float(np.real(v_R1 * np.conj(v_R1 / R)))  # = |V_R|^2 / R
 
         # Perturb C1 and compute FD of P_R
         C_nom = 100e-12

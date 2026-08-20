@@ -272,6 +272,40 @@ class FactorizedMNAState:
     V_nominal: np.ndarray
 
 
+@dataclass(frozen=True)
+class SolvedMNASystem:
+    """A screened, solved nominal MNA system retained for derivative reuse (P12.5-F).
+
+    Holds exactly the per-frequency nominal state a sensitivity consumer needs:
+    the assembled system, the node map, the nominal solution and the validity
+    outcome that :func:`solve_mna` already established for these very arrays.
+
+    Attributes
+    ----------
+    f_hz : float
+    y : np.ndarray
+        Assembled ``(N, N)`` admittance matrix (treated as read-only).
+    b : np.ndarray
+        Assembled ``(N,)`` RHS current vector (treated as read-only).
+    node_map : dict[str, int]
+        Node ID -> matrix index mapping owned by the assembling graph.
+    v_nominal : np.ndarray
+        The nominal solution ``solve_mna`` returned for ``(y, b)``.
+    status : CircuitSolveStatus
+        Validity outcome of that solve (only ``OK`` states are ever retained).
+    diagnostics : SolveDiagnostics
+        Diagnostics of that solve, including ``cond(y)``.
+    """
+
+    f_hz: float
+    y: np.ndarray
+    b: np.ndarray
+    node_map: dict[str, int]
+    v_nominal: np.ndarray
+    status: CircuitSolveStatus
+    diagnostics: SolveDiagnostics
+
+
 def solve_mna_factorized(
     Y: np.ndarray,
     I_vec: np.ndarray,
@@ -382,4 +416,82 @@ def solve_mna_factorized(
             condition_number=cond,
             residual_norm=residual_norm,
         ),
+    )
+
+
+def refactorize_shared_mna(
+    Y: np.ndarray,
+    I_vec: np.ndarray,
+    condition_number: float,
+    opts: SolverOptions | None = None,
+) -> tuple[FactorizedMNAState | None, CircuitSolveStatus, SolveDiagnostics]:
+    """Run stages 3-5 of :func:`solve_mna_factorized` on an already-screened system.
+
+    P12.5-F.  ``(Y, I_vec)`` must be the *same arrays* that a prior
+    :func:`solve_mna` / :func:`solve_mna_factorized` call already screened, and
+    ``condition_number`` its recorded ``cond(Y)``.  Stage 1 (nonfinite
+    pre-screen) and stage 2 (condition-number gate) are pure functions of those
+    arrays, so re-running them cannot change the outcome; stages 3-5 are
+    re-executed unchanged so the factorization, the solution finiteness gate and
+    the residual gate keep byte-for-byte identical semantics.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Complex admittance matrix, already screened.
+    I_vec : np.ndarray
+        Complex RHS current vector, already screened.
+    condition_number : float
+        ``cond(Y)`` as recorded by the screening solve.
+    opts : SolverOptions | None
+        Solver options.  Defaults to ``SolverOptions()``.
+
+    Returns
+    -------
+    state : FactorizedMNAState | None
+    status : CircuitSolveStatus
+    diagnostics : SolveDiagnostics
+    """
+    import scipy.linalg
+
+    if opts is None:
+        opts = SolverOptions()
+
+    cond = float(condition_number)
+
+    # -- 3. Solve (Factorized) ---------------------------------------------
+    try:
+        lu_and_piv = scipy.linalg.lu_factor(Y)
+        V = scipy.linalg.lu_solve(lu_and_piv, I_vec)
+    except (np.linalg.LinAlgError, ValueError):
+        return (
+            None,
+            CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
+            SolveDiagnostics(condition_number=cond),
+        )
+
+    # -- 4. Solution finiteness --------------------------------------------
+    if not np.all(np.isfinite(V)):
+        return (
+            None,
+            CircuitSolveStatus.NUMERICAL_ERROR,
+            SolveDiagnostics(condition_number=cond, nonfinite_in_solution=True),
+        )
+
+    # -- 5. Residual check -------------------------------------------------
+    residual = float(np.linalg.norm(Y @ V - I_vec))
+    i_norm = max(float(np.linalg.norm(I_vec)), 1e-30)
+    residual_norm = residual / i_norm
+
+    if residual_norm > opts.residual_threshold:
+        return (
+            None,
+            CircuitSolveStatus.NUMERICAL_ERROR,
+            SolveDiagnostics(condition_number=cond, residual_norm=residual_norm),
+        )
+
+    return (
+        FactorizedMNAState(lu_and_piv=lu_and_piv, V_nominal=V),
+        CircuitSolveStatus.OK,
+        SolveDiagnostics(condition_number=cond, residual_norm=residual_norm),
     )

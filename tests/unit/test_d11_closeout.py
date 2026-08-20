@@ -186,7 +186,7 @@ class TestAnalyticalSupportGate:
         """w_loss > 0 but lossy_element_ids=() → J_loss=0, supported."""
         config = ObjectiveConfig(z_ref_ohm=50.0, w_loss=1.0)
         soft = ConstraintLayout(descriptors=())
-        ok, reasons = check_analytical_support(config, soft, None, None)
+        ok, _reasons = check_analytical_support(config, soft, None, None)
         assert ok is True
 
     def test_w_loss_with_lossy_elements_now_supported(self):
@@ -218,7 +218,7 @@ class TestAnalyticalSupportGate:
             penalty_weight=1.0,
         )
         soft = ConstraintLayout(descriptors=(desc,))
-        ok, reasons = check_analytical_support(config, soft, None, None)
+        ok, _reasons = check_analytical_support(config, soft, None, None)
         assert ok is True
 
     def test_soft_constraints_with_data_supported(self):
@@ -235,7 +235,7 @@ class TestAnalyticalSupportGate:
             penalty_weight=1.0,
         )
         soft = ConstraintLayout(descriptors=(desc,))
-        ok, reasons = check_analytical_support(config, soft, np.array([0.1]), np.array([[0.5]]))
+        ok, _reasons = check_analytical_support(config, soft, np.array([0.1]), np.array([[0.5]]))
         assert ok is True
 
     def test_production_eom_optimization_config_supported(self):
@@ -263,7 +263,7 @@ class TestObjectiveCoherence:
     def test_gradient_matches_central_fd(self, production_ctx):
         """∇J_analytic ≈ ∇J_centralFD for the production objective."""
         ctx = production_ctx
-        cache = DomainEvaluatorCache()
+        DomainEvaluatorCache()
         x0 = np.array([0.5, 0.5, 0.5])
 
         txn = DerivativeTransaction(ctx)
@@ -331,8 +331,7 @@ class TestObjectiveCoherence:
         x0 = np.array([0.5, 0.5, 0.5])
 
         # Get J_total from production evaluator
-        res = evaluate(x0, ctx, DomainEvaluatorCache())
-        j_total_prod = res.objective_value
+        evaluate(x0, ctx, DomainEvaluatorCache())
 
         # Get gradient from analytical transaction
         txn = DerivativeTransaction(ctx)
