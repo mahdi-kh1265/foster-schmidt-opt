@@ -27,7 +27,98 @@ class VerifyCtrl:
 
         spec = state_to_spec(state)
 
-        sweep_res = compute_adaptive_sweep(cand, spec.frequencies, spec.matching, spec.eom)
+        # Build graph from CandidateResult for P06
+        import math
+        from foster_eom.foster.foster_form import FosterCell, FosterComponents
+        from foster_eom.foster.network_builder import build_foster_circuit
+        from foster_eom.foster.sign_search import SignPattern
+        from foster_eom.foster.schmidt import BranchRealization
+        from foster_eom.domain.topology import LOrientation
+        from foster_eom.foster.topology_enum import TopologyCandidate
+        from foster_eom.models.factory import build_eom_model
+
+        def _make_components(
+            cells_count: int,
+            has_c0: bool,
+            has_linf: bool,
+            k_residues: list[float],
+            k0: float | None,
+            k_inf: float | None,
+            f_poles_hz: list[float],
+        ) -> FosterComponents | None:
+            if cells_count == 0 and not has_c0 and not has_linf:
+                return None
+            cells = []
+            for i in range(cells_count):
+                k = k_residues[i]
+                f = f_poles_hz[i]
+                w = 2.0 * math.pi * f
+                c_f = 1.0 / k if k > 0 else 0.0
+                l_h = k / (w * w) if w > 0 else 0.0
+                cells.append(FosterCell(l_h=l_h, c_f=c_f, f_pole_hz=f))
+            c0_f = (1.0 / k0) if has_c0 and k0 is not None and k0 > 0 else None
+            return FosterComponents(c0_f=c0_f, l_inf_h=k_inf if has_linf else None, cells=tuple(cells))
+
+        c1 = _make_components(
+            cand.branch1_cells, cand.branch1_has_c0, cand.branch1_has_linf,
+            cand.k_residues_branch1, cand.k0_branch1, cand.k_inf_branch1, cand.pole_frequencies_branch1_hz
+        )
+        c2 = _make_components(
+            cand.branch2_cells, cand.branch2_has_c0, cand.branch2_has_linf,
+            cand.k_residues_branch2, cand.k0_branch2, cand.k_inf_branch2, cand.pole_frequencies_branch2_hz
+        )
+
+        br1 = BranchRealization(cand.branch1_realization) if cand.branch1_realization else BranchRealization.FINITE_FOSTER
+        br2 = BranchRealization(cand.branch2_realization) if cand.branch2_realization else BranchRealization.FINITE_FOSTER
+        
+        # P05 always uses orientation "shunt_series" or "series_shunt".
+        # If empty, default to SHUNT_SERIES for safety.
+        orient = LOrientation(cand.orientation) if cand.orientation else LOrientation.SHUNT_SERIES
+        sp = SignPattern(
+            orientation=orient,
+            signs=(),
+            series_targets=(),
+            shunt_targets=(),
+            branch1_required_intervals=(),
+            branch2_required_intervals=(),
+            branch1_realization=br1,
+            branch2_realization=br2
+        )
+
+        tc = TopologyCandidate(
+            orientation=orient,
+            branch1_cells=cand.branch1_cells,
+            branch2_cells=cand.branch2_cells,
+            branch1_has_c0=cand.branch1_has_c0,
+            branch1_has_linf=cand.branch1_has_linf,
+            branch2_has_c0=cand.branch2_has_c0,
+            branch2_has_linf=cand.branch2_has_linf,
+            branch1_n_coefficients=1,
+            branch2_n_coefficients=1,
+            n_reactive=1,
+            structurally_valid=True,
+            prune_reason=None
+        )
+        eom_model = build_eom_model(spec.eom)
+        built = build_foster_circuit(
+            topology=tc,
+            sign_pattern=sp,
+            branch1_components=c1,
+            branch2_components=c2,
+            eom_model=eom_model
+        )
+
+        from foster_eom.analysis.sweep import SweepSpec
+        target_hz = tuple(t.frequency_hz for t in spec.frequencies.targets)
+        sweep_spec = SweepSpec.from_targets(target_hz=target_hz)
+
+        sweep_res = compute_adaptive_sweep(
+            graph=built.graph,
+            source_spec=spec.source,
+            eom_model=eom_model,
+            spec=sweep_spec,
+            target_hz=target_hz
+        )
         stress_res = compute_stress(sweep_res, spec.stress)
         q_metrics = compute_q_metrics(sweep_res, spec.q_bandwidth)
 

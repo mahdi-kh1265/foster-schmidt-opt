@@ -182,3 +182,76 @@ def test_fallback_integration_seam():
     assert len(minimize_calls) == 2
     assert callable(minimize_calls[0]) # analytical jacobian is a callable
     assert minimize_calls[1] == "2-point"
+
+
+@patch("foster_eom.gui.controllers.verify_ctrl.compute_q_metrics")
+@patch("foster_eom.gui.controllers.verify_ctrl.compute_stress")
+@patch("foster_eom.gui.controllers.verify_ctrl.compute_adaptive_sweep")
+def test_p06_handoff_integration(mock_sweep, mock_stress, mock_q):
+    """Verify application wiring preserves candidate structure into P06 analysis."""
+    from foster_eom.gui.controllers.verify_ctrl import VerifyCtrl
+    
+    mock_sweep.return_value = "mock_sweep_res"
+    mock_stress.return_value = "mock_stress_res"
+    mock_q.return_value = "mock_q_res"
+
+    state = _build_test_state()
+    
+    import dataclasses
+    from tests.unit.test_p12_5_e_analytical_polish import _build_case
+    from foster_eom.optimize.evaluator import DomainEvaluatorCache, evaluate
+    import numpy as np
+
+    ctx = _build_case(feasible=True)
+    cache = DomainEvaluatorCache()
+    dummy_res = evaluate(np.array([0.5, 0.5, 0.5]), ctx, cache)
+    
+    from foster_eom.optimize.engine import _build_candidate_result
+    cand = _build_candidate_result(dummy_res, ctx.domain, "test_id", "test_seed", 1, pre_polish_objective=None)
+    
+    # Populate physical coordinates that the engine usually populates
+    cand.k_residues_branch1 = [1.0] * ctx.domain.topology.branch1_cells
+    cand.pole_frequencies_branch1_hz = [1e6] * ctx.domain.topology.branch1_cells
+    cand.k0_branch1 = 1.0 if cand.branch1_has_c0 else None
+    cand.k_inf_branch1 = 1.0 if cand.branch1_has_linf else None
+
+    cand.k_residues_branch2 = [1.0] * ctx.domain.topology.branch2_cells
+    cand.pole_frequencies_branch2_hz = [1e6] * ctx.domain.topology.branch2_cells
+    cand.k0_branch2 = 1.0 if cand.branch2_has_c0 else None
+    cand.k_inf_branch2 = 1.0 if cand.branch2_has_linf else None
+    
+    from foster_eom.optimize.engine import OptimizationResult, DEDiagnostics
+    mock_de_diag = DEDiagnostics(
+        domain_id="p12_5_e_small", n_pop=1, n_gen_requested=1, n_gen_completed=1,
+        budget_allocated=100, unique_x_evaluations=1, cache_hits=0,
+        target_frequency_point_solves=1, coarse_frequency_point_solves=0, total_frequency_point_solves=1,
+        numerical_failures=0, best_objective=dummy_res.objective_value, best_feasible=dummy_res.feasible,
+        de_termination="mocked"
+    )
+    from unittest.mock import MagicMock
+    opt_result = OptimizationResult(
+        best_feasible=cand,
+        near_feasible_best=None,
+        preflight=MagicMock(),
+        seed_diagnostics=MagicMock(),
+        de_diagnostics=(mock_de_diag,),
+        run_manifest=MagicMock(),
+        candidates=(cand,)
+    )
+    
+    res_sweep, res_q, res_stress = VerifyCtrl.run(state, opt_result)
+    
+    assert res_sweep == "mock_sweep_res"
+    assert res_q == "mock_q_res"
+    assert res_stress == "mock_stress_res"
+    
+    assert mock_sweep.called
+    kwargs = mock_sweep.call_args.kwargs
+    graph = kwargs.get("graph") or mock_sweep.call_args.args[0]
+    
+    assert graph is not None
+    assert type(graph).__name__ == "CircuitGraph"
+    
+    # Ensure analytical-origin candidate is accepted identically
+    # branch1_cells is correctly propagated and graph builds
+    assert cand.branch1_cells == ctx.domain.topology.branch1_cells
