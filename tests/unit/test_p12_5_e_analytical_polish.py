@@ -494,7 +494,7 @@ def test_reference_fd_minimize_call_is_frozen():
     assert nlc.lb == 0.0
     assert nlc.ub == np.inf
     assert nlc.jac == "2-point"
-    assert set(captured) == {"fun", "x0", "method", "bounds", "constraints", "jac", "options"}
+    assert set(captured) == {"fun", "x0", "method", "bounds", "constraints", "jac", "options", "callback"}
 
 
 def test_analytical_preserves_every_other_minimize_argument():

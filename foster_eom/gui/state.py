@@ -48,15 +48,74 @@ class TopologyParams:
 
 
 @dataclass
+class OptimizationPresetParams:
+    """GUI-level optimization preset selection and custom overrides."""
+
+    preset: str = "BALANCED"  # FAST, BALANCED, THOROUGH, CUSTOM
+    custom_max_global_evaluations: int = 2500
+    custom_polish_top_k: int = 2
+    custom_local_max_iterations: int = 100
+
+
+@dataclass
+class MatchParams:
+    """GUI-level matching constraint parameters."""
+
+    gamma_max: float = 0.25
+    resistance_min_ohm: float = 35.0
+    resistance_max_ohm: float = 70.0
+    max_abs_reactance_ohm: float = 20.0
+
+
+@dataclass
+class StressParams:
+    """GUI-level stress constraint parameters."""
+
+    source_current_rms_max_a: float = 0.5
+    off_target_eom_peak_rms_v: float = 50.0
+    default_cap_peak_voltage_v: float = 100.0
+    default_ind_peak_current_a: float = 1.0
+
+
+@dataclass
+class ComponentLimitParams:
+    """GUI-level L/C component range parameters."""
+
+    l_min_h: float = 10.0e-9
+    l_max_h: float = 100.0e-6
+    c_min_f: float = 0.2e-12
+    c_max_f: float = 20.0e-9
+
+
+@dataclass
+class ObjectiveWeightParams:
+    """GUI-level objective weight parameters (Advanced)."""
+
+    weight_gamma: float = 1.0
+    weight_voltage: float = 1.0
+    weight_loss: float = 0.0
+    weight_complexity: float = 0.0
+
+
+@dataclass
 class ProjectState:
     # --- inputs ---
     name: str = ""
     frequencies_hz: list[float] = field(default_factory=list)
+    voltage_targets_rms_v: list[float | None] = field(default_factory=list)
     sweep_f_min_hz: float = 1e6
     sweep_f_max_hz: float = 30e6
     source: SourceParams = field(default_factory=SourceParams)
     eom: EOMParams = field(default_factory=EOMParams)
     topology: TopologyParams = field(default_factory=TopologyParams)
+    optimization_preset: OptimizationPresetParams = field(
+        default_factory=OptimizationPresetParams
+    )
+    match_params: MatchParams = field(default_factory=MatchParams)
+    stress_params: StressParams = field(default_factory=StressParams)
+    component_limits: ComponentLimitParams = field(default_factory=ComponentLimitParams)
+    objective_weights: ObjectiveWeightParams = field(default_factory=ObjectiveWeightParams)
+
 
     # GUI-level context
     library_path: str | None = None

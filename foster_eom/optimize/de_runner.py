@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import math
 import os
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
+
+from foster_eom.optimize.progress import ProgressCallback
 
 from foster_eom.domain.results import CandidateResult
 from foster_eom.optimize.dedup import deb_key
@@ -162,6 +165,8 @@ def run_de(
     warm_start_candidates: list | None = None,
     checkpoint_interval: int = 0,
     checkpoint_callback: Callable[[], None] | None = None,
+    cancel_event: threading.Event | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[EvaluationResult], DEDiagnostics]:
     """Run Differential Evolution on one domain.
 
@@ -237,8 +242,11 @@ def run_de(
 
         last_checkpoint_evals = cache.n_unique_evaluations
 
-        def _callback(intermediate_result: object) -> None:
+        def _callback(intermediate_result: object) -> bool:
             nonlocal last_checkpoint_evals
+            # Cooperative cancellation: return True to terminate DE.
+            if cancel_event is not None and cancel_event.is_set():
+                return True
             if (
                 checkpoint_interval > 0
                 and checkpoint_callback
@@ -246,6 +254,7 @@ def run_de(
             ):
                 checkpoint_callback()
                 last_checkpoint_evals = cache.n_unique_evaluations
+            return False
 
         result = differential_evolution(
             func=_obj,
@@ -261,7 +270,10 @@ def run_de(
             atol=0.0,
             callback=_callback,
         )
-        de_termination = result.message
+        if cancel_event is not None and cancel_event.is_set():
+            de_termination = "cancelled"
+        else:
+            de_termination = result.message
 
     except Exception as exc:
         de_termination = f"exception: {type(exc).__name__}: {exc}"

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from foster_eom.domain.component import ComponentPolicy, ContinuousLimits
+from foster_eom.domain.constraints import MatchConstraints, StressConstraints
 from foster_eom.domain.eom import EOMModelSpec, EOMModelType, MotionalBranch
 from foster_eom.domain.frequency_plan import FrequencyPlan, FrequencyTarget
 from foster_eom.domain.objectives import DerivativeMode, OptimizationSpec
@@ -20,6 +22,68 @@ from foster_eom.gui.state import (
     TopologyParams,
 )
 from foster_eom.persistence.yaml_io import load_project, save_project
+
+
+# ---------------------------------------------------------------------------
+# Preset definitions (GUI policy — does NOT modify backend defaults)
+# ---------------------------------------------------------------------------
+
+_PRESETS: dict[str, dict[str, int]] = {
+    "FAST": {
+        "max_global_evaluations": 500,
+        "polish_top_k": 1,
+        "local_max_iterations": 20,
+        "random_seed": 42,
+    },
+    "BALANCED": {
+        "max_global_evaluations": 2_500,
+        "polish_top_k": 2,
+        "local_max_iterations": 100,
+        "random_seed": 20260815,
+    },
+    "THOROUGH": {
+        "max_global_evaluations": 50_000,
+        "polish_top_k": 8,
+        "local_max_iterations": 1_500,
+        "random_seed": 20260815,
+    },
+}
+
+
+def _compile_optimization_spec(state: ProjectState) -> OptimizationSpec:
+    """Compile GUI preset + custom overrides into an explicit OptimizationSpec.
+
+    Every budget field is set explicitly — no reliance on backend defaults.
+    ``DerivativeMode.ANALYTICAL`` is always set (frozen GUI production path).
+    """
+    preset_name = state.optimization_preset.preset
+    ow = state.objective_weights
+
+    if preset_name == "CUSTOM":
+        return OptimizationSpec(
+            max_global_evaluations=state.optimization_preset.custom_max_global_evaluations,
+            polish_top_k=state.optimization_preset.custom_polish_top_k,
+            local_max_iterations=state.optimization_preset.custom_local_max_iterations,
+            random_seed=20260815,
+            local_derivative_mode=DerivativeMode.ANALYTICAL,
+            objective_weight_gamma=ow.weight_gamma,
+            objective_weight_voltage=ow.weight_voltage,
+            objective_weight_loss=ow.weight_loss,
+            objective_weight_complexity=ow.weight_complexity,
+        )
+
+    p = _PRESETS[preset_name]
+    return OptimizationSpec(
+        max_global_evaluations=p["max_global_evaluations"],
+        polish_top_k=p["polish_top_k"],
+        local_max_iterations=p["local_max_iterations"],
+        random_seed=p["random_seed"],
+        local_derivative_mode=DerivativeMode.ANALYTICAL,
+        objective_weight_gamma=ow.weight_gamma,
+        objective_weight_voltage=ow.weight_voltage,
+        objective_weight_loss=ow.weight_loss,
+        objective_weight_complexity=ow.weight_complexity,
+    )
 
 
 def state_to_spec(state: ProjectState) -> ProjectSpec:
@@ -48,8 +112,15 @@ def state_to_spec(state: ProjectState) -> ProjectSpec:
         validity_hz=state.eom.validity_hz,
     )
 
+    # Build frequency targets with optional per-target voltage
+    voltages = getattr(state, "voltage_targets_rms_v", [])
+    freq_targets = []
+    for i, f in enumerate(state.frequencies_hz):
+        v = voltages[i] if i < len(voltages) else None
+        freq_targets.append(FrequencyTarget(frequency_hz=f, voltage_target_rms_v=v))
+
     frequencies = FrequencyPlan(
-        targets=[FrequencyTarget(frequency_hz=f) for f in state.frequencies_hz],
+        targets=freq_targets,
         sweep_f_min_hz=state.sweep_f_min_hz,
         sweep_f_max_hz=state.sweep_f_max_hz,
     )
@@ -62,8 +133,35 @@ def state_to_spec(state: ProjectState) -> ProjectSpec:
         # Default pole settings handled by TopologySearchSpec defaults
     )
 
-    optimization = OptimizationSpec(
-        local_derivative_mode=DerivativeMode.ANALYTICAL
+    optimization = _compile_optimization_spec(state)
+
+    # Compile match constraints from GUI state
+    mp = state.match_params
+    matching = MatchConstraints(
+        gamma_max=mp.gamma_max,
+        resistance_min_ohm=mp.resistance_min_ohm,
+        resistance_max_ohm=mp.resistance_max_ohm,
+        max_abs_reactance_ohm=mp.max_abs_reactance_ohm,
+    )
+
+    # Compile stress constraints from GUI state
+    sp = state.stress_params
+    stress = StressConstraints(
+        source_current_rms_max_a=sp.source_current_rms_max_a,
+        off_target_eom_peak_rms_v=sp.off_target_eom_peak_rms_v,
+        default_cap_peak_voltage_v=sp.default_cap_peak_voltage_v,
+        default_ind_peak_current_a=sp.default_ind_peak_current_a,
+    )
+
+    # Compile component limits from GUI state
+    cl = state.component_limits
+    components = ComponentPolicy(
+        continuous_limits=ContinuousLimits(
+            l_min_h=cl.l_min_h,
+            l_max_h=cl.l_max_h,
+            c_min_f=cl.c_min_f,
+            c_max_f=cl.c_max_f,
+        )
     )
 
     return ProjectSpec(
@@ -72,6 +170,9 @@ def state_to_spec(state: ProjectState) -> ProjectSpec:
         frequencies=frequencies,
         topology=topology,
         optimization=optimization,
+        matching=matching,
+        stress=stress,
+        components=components,
     )
 
 

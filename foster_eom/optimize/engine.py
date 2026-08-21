@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -268,6 +269,8 @@ def run_optimization(
     extra_constraint_records: list | None = None,
     checkpoint_path: str | Path | None = None,
     warm_start_candidates: list[CandidateResult] | None = None,
+    cancel_event: threading.Event | None = None,
+    progress_callback: object | None = None,
 ) -> OptimizationResult:
     """Run the full Prompt-05 layered optimization pipeline.
 
@@ -535,6 +538,7 @@ def run_optimization(
             warm_start_candidates=warm_start_candidates,
             checkpoint_interval=opt_spec.checkpoint_every_evaluations,
             checkpoint_callback=_build_checkpoint,
+            cancel_event=cancel_event,
         )
         if _p:
             _p.de_time += __import__("time").perf_counter() - _t_de_start
@@ -549,11 +553,20 @@ def run_optimization(
             _p.dedup_time += __import__("time").perf_counter() - _t_dedup_start
 
         # ---- 8. Local polish ----
+        # If cancelled during DE, skip polish entirely.
+        _cancelled = cancel_event is not None and cancel_event.is_set()
+
         if _p:
             _p.record_memory(f"before_polish_domain_{domain.domain_id}")
 
         _t_polish_start = __import__("time").perf_counter() if _p else 0.0
-        polish_results = polish_top_k(basins, ctx, cache, opt_spec)
+        if _cancelled:
+            polish_results = []
+        else:
+            polish_results = polish_top_k(
+                basins, ctx, cache, opt_spec,
+                cancel_event=cancel_event,
+            )
         if _p:
             _p.polish_time += __import__("time").perf_counter() - _t_polish_start
             _p.record_memory(f"after_polish_domain_{domain.domain_id}")

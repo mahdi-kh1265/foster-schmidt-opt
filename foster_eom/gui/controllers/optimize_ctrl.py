@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import threading
+
 from foster_eom.gui.adapter import state_to_spec
 from foster_eom.gui.state import ProjectState
 from foster_eom.optimize.engine import run_optimization
+from foster_eom.optimize.progress import ProgressCallback
 
 
 class OptimizeCtrl:
     @staticmethod
-    def run(state: ProjectState) -> object:
+    def run(
+        state: ProjectState,
+        cancel_event: threading.Event | None = None,
+        progress_callback: ProgressCallback | None = None,
+    ) -> object:
         """Run optimization and return the result."""
         if not state.frequencies_hz:
             raise ValueError("At least one target frequency must be specified.")
@@ -44,4 +51,6 @@ class OptimizeCtrl:
             target_frequencies_hz=tuple(f_targets_hz),
             sweep_f_min_hz=spec.frequencies.sweep_f_min_hz,
             sweep_f_max_hz=spec.frequencies.sweep_f_max_hz,
+            cancel_event=cancel_event,
+            progress_callback=progress_callback,
         )

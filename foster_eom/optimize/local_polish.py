@@ -17,6 +17,7 @@ unresolved derivative state falls the affected candidate back to
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -35,6 +36,7 @@ from foster_eom.optimize.evaluator import (
     EvaluationResult,
     evaluate,
 )
+from foster_eom.optimize.progress import ProgressCallback
 
 # ---------------------------------------------------------------------------
 # Telemetry
@@ -186,6 +188,8 @@ def _run_polish(
     mode: DerivativeMode,
     requested_mode: DerivativeMode,
     fallback_reason: str | None,
+    cancel_event: threading.Event | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> _PolishRun:
     """Run one ``trust-constr`` polish under a single derivative mode.
 
@@ -246,7 +250,16 @@ def _run_polish(
 
     t_run = time.perf_counter()
     scipy_result: Any = None
+    cancelled = False
     try:
+        def _tc_callback(xk: Any, state: Any) -> bool:
+            """Native trust-constr callback for cancellation and progress."""
+            nonlocal cancelled
+            if cancel_event is not None and cancel_event.is_set():
+                cancelled = True
+                return True
+            return False
+
         scipy_result = minimize(
             fun=_obj,
             x0=x0,
@@ -254,6 +267,7 @@ def _run_polish(
             bounds=bounds,
             constraints=nlc,
             jac=obj_jac,
+            callback=_tc_callback,
             options={
                 "maxiter": max_iter,
                 "finite_diff_rel_step": fd_step,
@@ -262,9 +276,9 @@ def _run_polish(
         )
         post_x = np.clip(scipy_result.x, 0.0, 1.0)
         post_result = evaluate(post_x, context, cache)
-        success = bool(scipy_result.success)
+        success = not cancelled and bool(scipy_result.success)
         n_iter = getattr(scipy_result, "nit", 0)
-        term_msg = scipy_result.message
+        term_msg = "cancelled" if cancelled else scipy_result.message
         reason = None
     except DerivativeUnavailable:
         # Derivative problem, not a numerical polish failure — let the caller
@@ -383,6 +397,8 @@ def polish_basin(
     context: EvaluationContext,
     cache: DomainEvaluatorCache,
     opt_spec: OptimizationSpec,
+    cancel_event: threading.Event | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> PolishResult:
     """Polish the representative of one basin.
 
@@ -445,6 +461,8 @@ def polish_basin(
                 DerivativeMode.ANALYTICAL,
                 requested_mode,
                 None,
+                cancel_event,
+                progress_callback,
             )
         except DerivativeUnavailable as exc:
             run = _run_polish(
@@ -456,6 +474,8 @@ def polish_basin(
                 DerivativeMode.REFERENCE_FD,
                 requested_mode,
                 exc.reason,
+                cancel_event,
+                progress_callback,
             )
     else:
         run = _run_polish(
@@ -467,6 +487,8 @@ def polish_basin(
             DerivativeMode.REFERENCE_FD,
             requested_mode,
             None,
+            cancel_event,
+            progress_callback,
         )
 
     if _p:
@@ -512,6 +534,8 @@ def polish_top_k(
     context: EvaluationContext,
     cache: DomainEvaluatorCache,
     opt_spec: OptimizationSpec,
+    cancel_event: threading.Event | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> list[PolishResult]:
     """Polish the top-k basin representatives (by Deb key of representative)."""
     k = opt_spec.polish_top_k
@@ -520,7 +544,10 @@ def polish_top_k(
 
     results: list[PolishResult] = []
     for i, basin in enumerate(selected):
-        pr = polish_basin(basin, i, context, cache, opt_spec)
+        # Cooperative cancellation between candidates.
+        if cancel_event is not None and cancel_event.is_set():
+            break
+        pr = polish_basin(basin, i, context, cache, opt_spec, cancel_event, progress_callback)
         results.append(pr)
 
     return results
