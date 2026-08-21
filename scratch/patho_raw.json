@@ -1,0 +1,321 @@
+{
+ "PATHOLOGICAL_1201_GRID": {
+  "notes": "unmodified example grid: 1201 points / 1198 off-target hard rows, top-K=1, 1 domain, DE budget reduced (shared by both modes)",
+  "cap": 20,
+  "de_time_s": 9.83226239999749,
+  "pairs": [
+   {
+    "domain": "43c25d79ed1bcb0e53a661278711916baac9afb0b8ac57ae67346cd5d9813317",
+    "basin": 0,
+    "np": 12,
+    "ng": 1236,
+    "nf": 1201,
+    "fd": {
+     "mode": "reference_fd",
+     "wall_time_s": 234.5811423999985,
+     "telemetry": {
+      "derivative_mode": "reference_fd",
+      "requested_mode": "reference_fd",
+      "fallback_reason": null,
+      "wall_time_s": 234.5811423999985,
+      "n_iterations": 20,
+      "nfev": 260,
+      "njev": 20,
+      "nhev": 0,
+      "constraint_nfev": 260,
+      "constraint_njev": 0,
+      "transaction_evaluations": 0,
+      "transaction_reuse_hits": 0,
+      "objective_jac_calls": 0,
+      "constraint_jac_calls": 0,
+      "jacobian_evals": 0,
+      "factorizations": 0,
+      "direct_substitutions": 0,
+      "adjoint_substitutions": 0,
+      "evaluator_unique_evaluations": 500,
+      "evaluator_target_freq_solves": 1500,
+      "evaluator_coarse_freq_solves": 599000,
+      "success": false,
+      "status_message": "The maximum number of function evaluations is exceeded.",
+      "final_objective": 3.285362433244037,
+      "final_v_max": 14.663460439947098,
+      "final_feasible": false,
+      "n_params": 12,
+      "n_constraint_rows": 1236,
+      "n_evaluation_frequencies": 1201,
+      "extra": {}
+     },
+     "x": [
+      0.47001889400558616,
+      0.7572049083461398,
+      0.7673812378138556,
+      0.7861031760713207,
+      0.6137407689342559,
+      0.4867649796683507,
+      0.7751544276322453,
+      0.7861031760713207,
+      0.6147589996176995,
+      0.48536997833904294,
+      0.6316658630334547,
+      1.579348392114821e-06
+     ],
+     "objective": 13.78158699395337,
+     "v_max": 0.24354979053436934,
+     "feasible": false,
+     "near_feasible": false,
+     "numerical_status": "ok",
+     "termination": "The maximum number of function evaluations is exceeded.",
+     "success": false,
+     "post_x": [
+      0.5000878358255458,
+      0.6405442983799238,
+      0.7814975680211925,
+      0.7496118961428061,
+      0.6590980930483121,
+      0.6283908170456809,
+      0.7508023154383499,
+      0.840943040328181,
+      0.6327973513036409,
+      0.5618538711893074,
+      0.7462452029564368,
+      5.79432079324768e-06
+     ],
+     "post_objective": 3.285362433244037,
+     "post_v_max": 14.663460439947098,
+     "post_feasible": false,
+     "polish_improved": false,
+     "l_values": [
+      2.1127525189827045e-05,
+      3.1738372814377988e-06,
+      1.06861098278027e-05,
+      2.261490673219309e-05,
+      3.480539843972401e-06,
+      1.1433492083422194e-05
+     ],
+     "c_values": [
+      2.4220685816773875e-11,
+      7.255426064710887e-11,
+      8.931728754910668e-11,
+      2.2627692246031744e-11,
+      8.08632410363692e-11,
+      1.3889949939135909e-11
+     ],
+     "f_poles": [
+      7035623.639735145,
+      10488088.481701516,
+      7035623.639735145,
+      9486832.980505139,
+      12629330.940315088
+     ],
+     "gamma_abs": [
+      2.757228772809933e-14,
+      9.120875513842569e-14,
+      5.5848356979391674e-14
+     ],
+     "v_eom_abs": [
+      56.9418757914464,
+      64.22467049289001,
+      66.81998644154008
+     ],
+     "deb": [
+      1.0,
+      0.24354979053436934,
+      13.78158699395337
+     ]
+    },
+    "an": {
+     "mode": "analytical",
+     "wall_time_s": 21.84849419999955,
+     "telemetry": {
+      "derivative_mode": "analytical",
+      "requested_mode": "analytical",
+      "fallback_reason": null,
+      "wall_time_s": 21.84849419999955,
+      "n_iterations": 20,
+      "nfev": 20,
+      "njev": 20,
+      "nhev": 0,
+      "constraint_nfev": 20,
+      "constraint_njev": 20,
+      "transaction_evaluations": 20,
+      "transaction_reuse_hits": 21,
+      "objective_jac_calls": 20,
+      "constraint_jac_calls": 20,
+      "jacobian_evals": 20,
+      "factorizations": 24020,
+      "direct_substitutions": 720,
+      "adjoint_substitutions": 23960,
+      "evaluator_unique_evaluations": 20,
+      "evaluator_target_freq_solves": 60,
+      "evaluator_coarse_freq_solves": 23960,
+      "success": false,
+      "status_message": "The maximum number of function evaluations is exceeded.",
+      "final_objective": 2.125667669297027,
+      "final_v_max": 23.887042852898418,
+      "final_feasible": false,
+      "n_params": 12,
+      "n_constraint_rows": 1236,
+      "n_evaluation_frequencies": 1201,
+      "extra": {}
+     },
+     "x": [
+      0.47001889400558616,
+      0.7572049083461398,
+      0.7673812378138556,
+      0.7861031760713207,
+      0.6137407689342559,
+      0.4867649796683507,
+      0.7751544276322453,
+      0.7861031760713207,
+      0.6147589996176995,
+      0.48536997833904294,
+      0.6316658630334547,
+      1.579348392114821e-06
+     ],
+     "objective": 13.78158699395337,
+     "v_max": 0.24354979053436934,
+     "feasible": false,
+     "near_feasible": false,
+     "numerical_status": "ok",
+     "termination": "The maximum number of function evaluations is exceeded.",
+     "success": false,
+     "post_x": [
+      0.47001910697059185,
+      0.7572050995519243,
+      0.7673812520799297,
+      0.7861032116119243,
+      0.6137407619258315,
+      0.48676501540335443,
+      0.7751544438052959,
+      0.7861031344030665,
+      0.614758999577358,
+      0.4853699499049917,
+      0.6316658487411502,
+      3.116439160232824e-06
+     ],
+     "post_objective": 2.125667669297027,
+     "post_v_max": 23.887042852898418,
+     "post_feasible": false,
+     "polish_improved": false,
+     "l_values": [
+      2.1127525189827045e-05,
+      3.1738372814377988e-06,
+      1.06861098278027e-05,
+      2.261490673219309e-05,
+      3.480539843972401e-06,
+      1.1433492083422194e-05
+     ],
+     "c_values": [
+      2.4220685816773875e-11,
+      7.255426064710887e-11,
+      8.931728754910668e-11,
+      2.2627692246031744e-11,
+      8.08632410363692e-11,
+      1.3889949939135909e-11
+     ],
+     "f_poles": [
+      7035623.639735145,
+      10488088.481701516,
+      7035623.639735145,
+      9486832.980505139,
+      12629330.940315088
+     ],
+     "gamma_abs": [
+      2.757228772809933e-14,
+      9.120875513842569e-14,
+      5.5848356979391674e-14
+     ],
+     "v_eom_abs": [
+      56.9418757914464,
+      64.22467049289001,
+      66.81998644154008
+     ],
+     "deb": [
+      1.0,
+      0.24354979053436934,
+      13.78158699395337
+     ]
+    },
+    "assessment": {
+     "d_objective": 0.0,
+     "d_max_violation": 0.0,
+     "u_inf": 0.0,
+     "l_rel": 0.0,
+     "c_rel": 0.0,
+     "fp_rel": 0.0,
+     "gamma_abs_d": 0.0,
+     "zin_rel": 0.0,
+     "veom_rel": 0.0,
+     "same_endpoint": true,
+     "analytical_better": false,
+     "feasible_ok": true,
+     "objective_not_worse": true,
+     "violation_ok": true,
+     "electricals_gated": true,
+     "gamma_ok": true,
+     "zin_ok": true,
+     "veom_ok": true,
+     "deb_worse": false,
+     "verdict": "EQUIVALENT"
+    }
+   }
+  ],
+  "profile": [
+   [
+    "Y_p derivative stamps",
+    2.6639462,
+    7.804619978918718
+   ],
+   [
+    "MNA assembly",
+    1.8804735,
+    5.509263305665561
+   ],
+   [
+    "adjoint sensitivities",
+    1.6006580000000001,
+    4.689481869497245
+   ],
+   [
+    "LU factor / nominal solve",
+    1.0755475,
+    3.1510544420064046
+   ],
+   [
+    "conditioning check",
+    0.41104080000000004,
+    1.2042349953729297
+   ],
+   [
+    "nominal frequency sweep (evaluate)",
+    0.1250854,
+    0.36646536326861245
+   ],
+   [
+    "optimizer overhead (scipy)",
+    0.06523970000000001,
+    0.1911341400358099
+   ],
+   [
+    "observables + constraint Jacobian",
+    0.056391500000000004,
+    0.16521137984738393
+   ],
+   [
+    "direct sensitivities",
+    0.0022417,
+    0.006567556284260581
+   ],
+   [
+    "constraint / objective layout evaluate",
+    0.0002012,
+    0.0005894599296931922
+   ],
+   [
+    "other / interpreter overhead",
+    26.25211380000001,
+    76.91137750917338
+   ]
+  ]
+ }
+}

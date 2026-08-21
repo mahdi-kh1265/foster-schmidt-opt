@@ -176,6 +176,7 @@ class SynthesizePage(QWidget):
                 f"Objective: {c.base_objective_value:.6f} (base) + {c.soft_penalty_total:.6f} (soft)",
                 f"Feasible: {c.feasible}  |  V_max: {c.v_max:.4f}",
                 f"Numerical: {c.numerical_status}",
+                f"Local polish method: {c.local_polish_method}",
                 f"Seed source: {c.seed_source}",
                 "",
                 "Objective terms:",

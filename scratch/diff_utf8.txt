@@ -1,0 +1,296 @@
+﻿diff --git a/foster_eom/circuit/mna.py b/foster_eom/circuit/mna.py
+index 3c08280..607b4a1 100644
+--- a/foster_eom/circuit/mna.py
++++ b/foster_eom/circuit/mna.py
+@@ -272,6 +272,40 @@ class FactorizedMNAState:
+     V_nominal: np.ndarray
+ 
+ 
++@dataclass(frozen=True)
++class SolvedMNASystem:
++    """A screened, solved nominal MNA system retained for derivative reuse (P12.5-F).
++
++    Holds exactly the per-frequency nominal state a sensitivity consumer needs:
++    the assembled system, the node map, the nominal solution and the validity
++    outcome that :func:`solve_mna` already established for these very arrays.
++
++    Attributes
++    ----------
++    f_hz : float
++    y : np.ndarray
++        Assembled ``(N, N)`` admittance matrix (treated as read-only).
++    b : np.ndarray
++        Assembled ``(N,)`` RHS current vector (treated as read-only).
++    node_map : dict[str, int]
++        Node ID -> matrix index mapping owned by the assembling graph.
++    v_nominal : np.ndarray
++        The nominal solution ``solve_mna`` returned for ``(y, b)``.
++    status : CircuitSolveStatus
++        Validity outcome of that solve (only ``OK`` states are ever retained).
++    diagnostics : SolveDiagnostics
++        Diagnostics of that solve, including ``cond(y)``.
++    """
++
++    f_hz: float
++    y: np.ndarray
++    b: np.ndarray
++    node_map: dict[str, int]
++    v_nominal: np.ndarray
++    status: CircuitSolveStatus
++    diagnostics: SolveDiagnostics
++
++
+ def solve_mna_factorized(
+     Y: np.ndarray,
+     I_vec: np.ndarray,
+@@ -383,3 +417,81 @@ def solve_mna_factorized(
+             residual_norm=residual_norm,
+         ),
+     )
++
++
++def refactorize_shared_mna(
++    Y: np.ndarray,
++    I_vec: np.ndarray,
++    condition_number: float,
++    opts: SolverOptions | None = None,
++) -> tuple[FactorizedMNAState | None, CircuitSolveStatus, SolveDiagnostics]:
++    """Run stages 3-5 of :func:`solve_mna_factorized` on an already-screened system.
++
++    P12.5-F.  ``(Y, I_vec)`` must be the *same arrays* that a prior
++    :func:`solve_mna` / :func:`solve_mna_factorized` call already screened, and
++    ``condition_number`` its recorded ``cond(Y)``.  Stage 1 (nonfinite
++    pre-screen) and stage 2 (condition-number gate) are pure functions of those
++    arrays, so re-running them cannot change the outcome; stages 3-5 are
++    re-executed unchanged so the factorization, the solution finiteness gate and
++    the residual gate keep byte-for-byte identical semantics.
++
++    Parameters
++    ----------
++    Y : np.ndarray
++        Complex admittance matrix, already screened.
++    I_vec : np.ndarray
++        Complex RHS current vector, already screened.
++    condition_number : float
++        ``cond(Y)`` as recorded by the screening solve.
++    opts : SolverOptions | None
++        Solver options.  Defaults to ``SolverOptions()``.
++
++    Returns
++    -------
++    state : FactorizedMNAState | None
++    status : CircuitSolveStatus
++    diagnostics : SolveDiagnostics
++    """
++    import scipy.linalg
++
++    if opts is None:
++        opts = SolverOptions()
++
++    cond = float(condition_number)
++
++    # -- 3. Solve (Factorized) ---------------------------------------------
++    try:
++        lu_and_piv = scipy.linalg.lu_factor(Y)
++        V = scipy.linalg.lu_solve(lu_and_piv, I_vec)
++    except (np.linalg.LinAlgError, ValueError):
++        return (
++            None,
++            CircuitSolveStatus.SINGULAR_OR_ILL_CONDITIONED,
++            SolveDiagnostics(condition_number=cond),
++        )
++
++    # -- 4. Solution finiteness --------------------------------------------
++    if not np.all(np.isfinite(V)):
++        return (
++            None,
++            CircuitSolveStatus.NUMERICAL_ERROR,
++            SolveDiagnostics(condition_number=cond, nonfinite_in_solution=True),
++        )
++
++    # -- 5. Residual check -------------------------------------------------
++    residual = float(np.linalg.norm(Y @ V - I_vec))
++    i_norm = max(float(np.linalg.norm(I_vec)), 1e-30)
++    residual_norm = residual / i_norm
++
++    if residual_norm > opts.residual_threshold:
++        return (
++            None,
++            CircuitSolveStatus.NUMERICAL_ERROR,
++            SolveDiagnostics(condition_number=cond, residual_norm=residual_norm),
++        )
++
++    return (
++        FactorizedMNAState(lu_and_piv=lu_and_piv, V_nominal=V),
++        CircuitSolveStatus.OK,
++        SolveDiagnostics(condition_number=cond, residual_norm=residual_norm),
++    )
+diff --git a/foster_eom/circuit/solve.py b/foster_eom/circuit/solve.py
+index e8f43b3..d3e7e31 100644
+--- a/foster_eom/circuit/solve.py
++++ b/foster_eom/circuit/solve.py
+@@ -9,7 +9,7 @@ import numpy as np
+ 
+ from foster_eom.circuit.graph import CircuitGraph
+ from foster_eom.circuit.measurements import CircuitSolution, compute_measurements
+-from foster_eom.circuit.mna import SolverOptions, assemble_mna, solve_mna
++from foster_eom.circuit.mna import SolvedMNASystem, SolverOptions, assemble_mna, solve_mna
+ from foster_eom.domain.source import SourceSpec
+ 
+ 
+@@ -37,6 +37,27 @@ def solve_circuit_single(
+     CircuitSolution
+         Full solution with measurements, or failed status.
+     """
++    sol, _ = solve_circuit_single_with_state(graph, source_spec, f_hz, opts)
++    return sol
++
++
++def solve_circuit_single_with_state(
++    graph: CircuitGraph,
++    source_spec: SourceSpec,
++    f_hz: float,
++    opts: SolverOptions | None = None,
++) -> tuple[CircuitSolution, SolvedMNASystem | None]:
++    """Solve at one frequency, additionally returning the raw MNA system (P12.5-F).
++
++    Numerically identical to :func:`solve_circuit_single` ΓÇö it *is* the body of
++    that function ΓÇö but it also hands back the assembled ``(Y, I, node_map)``
++    and the nominal solution ``V`` so a derivative consumer can reuse them
++    instead of assembling and screening the same system a second time.
++
++    The raw system is returned only when the solve succeeded; a failed solve
++    yields ``None`` so no consumer can reuse a state that has no nominal
++    solution.
++    """
+     if opts is None:
+         opts = SolverOptions()
+ 
+@@ -46,13 +67,16 @@ def solve_circuit_single(
+     V, status, diagnostics = solve_mna(Y, I_vec, opts)
+ 
+     if V is None:
+-        return CircuitSolution(
+-            f_hz=f_hz,
+-            status=status,
+-            diagnostics=diagnostics,
++        return (
++            CircuitSolution(
++                f_hz=f_hz,
++                status=status,
++                diagnostics=diagnostics,
++            ),
++            None,
+         )
+ 
+-    return compute_measurements(
++    sol = compute_measurements(
+         graph,
+         source_spec,
+         V,
+@@ -62,6 +86,16 @@ def solve_circuit_single(
+         atol=opts.power_balance_atol,
+         rtol=opts.power_balance_rtol,
+     )
++    system = SolvedMNASystem(
++        f_hz=f_hz,
++        y=Y,
++        b=I_vec,
++        node_map=node_map,
++        v_nominal=V,
++        status=status,
++        diagnostics=diagnostics,
++    )
++    return sol, system
+ 
+ 
+ def solve_circuit(
+diff --git a/foster_eom/optimize/derivative_provider.py b/foster_eom/optimize/derivative_provider.py
+index 5bb4c2e..ab5b510 100644
+--- a/foster_eom/optimize/derivative_provider.py
++++ b/foster_eom/optimize/derivative_provider.py
+@@ -14,15 +14,20 @@ Design contract
+   coverage, non-finite entry, or shape mismatch raises
+   :class:`DerivativeUnavailable` so the caller can fall back to the frozen FD
+   path for that candidate.  A partially-populated Jacobian is never returned.
+-* No cross-reuse of nominal MNA state between ``evaluate()`` and the transaction
+-  is attempted here; that duplicate sweep is measured in P12.5-E and left for F.
++* P12.5-F: the transaction reuses the nominal per-frequency MNA state the
++  production ``evaluate()`` already computed for the *current* iterate, via the
++  :class:`~foster_eom.optimize.nominal_state.NominalStateExchange` attached to
++  the shared :class:`DomainEvaluatorCache`.  Reuse requires exact identity of
++  ``u``, context, domain and frequency grid; anything else re-solves.  Only
++  ``ANALYTICAL`` attaches an exchange, so ``REFERENCE_FD`` is untouched.
+ """
+ 
+ from __future__ import annotations
+ 
+ import numpy as np
+ 
+-from foster_eom.optimize.evaluator import EvaluationContext
++from foster_eom.optimize.evaluator import DomainEvaluatorCache, EvaluationContext
++from foster_eom.optimize.nominal_state import NominalStateExchange
+ from foster_eom.sensitivities.objective_gradient import (
+     DerivativeStatus,
+     check_analytical_support,
+@@ -61,11 +66,31 @@ class AnalyticalDerivativeProvider:
+     ----------
+     context : EvaluationContext
+         The same frozen context the production evaluator uses.
++    cache : DomainEvaluatorCache | None
++        The same cache the production objective/constraint callbacks use.  When
++        given, a :class:`NominalStateExchange` is attached to it so the current
++        iterate's nominal MNA state is shared instead of swept twice (P12.5-F).
++        When ``None``, the transaction sweeps the grid itself exactly as in
++        P12.5-E.
+     """
+ 
+-    def __init__(self, context: EvaluationContext) -> None:
++    def __init__(
++        self,
++        context: EvaluationContext,
++        cache: DomainEvaluatorCache | None = None,
++    ) -> None:
+         self.context = context
+-        self.transaction = DerivativeTransaction(context)
++        self.cache = cache
++
++        exchange: NominalStateExchange | None = None
++        if cache is not None:
++            exchange = cache.nominal_exchange
++            if exchange is None:
++                exchange = NominalStateExchange()
++                cache.nominal_exchange = exchange
++            exchange.enable()
++        self.exchange = exchange
++        self.transaction = DerivativeTransaction(context, exchange=exchange)
+ 
+         self.n_params: int = context.domain.variable_mapper.dimension
+         self.n_hard: int = context.hard_layout.n
+@@ -182,7 +207,7 @@ class AnalyticalDerivativeProvider:
+     def metrics_snapshot(self) -> dict[str, int]:
+         """Flat counter snapshot for polish telemetry."""
+         m = self.transaction.metrics
+-        return {
++        snapshot = {
+             "transaction_evaluations": self.n_transaction_evaluations,
+             "transaction_reuse_hits": self.n_reuse_hits,
+             "objective_jac_calls": self.n_objective_jac_calls,
+@@ -191,4 +216,17 @@ class AnalyticalDerivativeProvider:
+             "factorizations": int(m["factorizations"]),
+             "direct_substitutions": int(m["direct_substitutions"]),
+             "adjoint_substitutions": int(m["adjoint_substitutions"]),
++            # P12.5-F nominal-work accounting
++            "transaction_nominal_sweep_solves": int(m["nominal_sweep_solves"]),
++            "transaction_nominal_states_reused": int(m["nominal_states_reused"]),
++            "nominal_bundle_hits": int(m["bundle_hits"]),
++            "nominal_bundle_misses": int(m["bundle_misses"]),
+         }
++        if self.exchange is not None:
++            snapshot.update(self.exchange.counters())
++        return snapshot
++
++    def release(self) -> None:
++        """Stop capturing and free every retained nominal state bundle."""
++        if self.exchange is not None:
++            self.exchange.disable()

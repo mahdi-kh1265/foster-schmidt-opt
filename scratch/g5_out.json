@@ -1,0 +1,96 @@
+{
+  "g5_b": {
+    "unique_states": 250,
+    "max_live_bundles": 1,
+    "final_live_bundles": 1
+  },
+  "g5_c": {
+    "nominal_old_collectable": true,
+    "transaction_old_collectable": true,
+    "other_collectable": true
+  },
+  "g5_d": {
+    "candidates": 1,
+    "unique_u": 22,
+    "nfev": 25,
+    "njev": 25,
+    "nominal_hits": 22,
+    "nominal_misses": 3,
+    "expected_preflight": 1,
+    "post_publication_misses": 2,
+    "trans_evals": 25,
+    "trans_reuse": 26,
+    "fallback": "None",
+    "max_live": 1
+  },
+  "g5_e": [
+    {
+      "check": "after warmup",
+      "states": 0,
+      "heap_cur_mb": 0.1434326171875,
+      "heap_peak_mb": 0.22614288330078125,
+      "rss_mb": 103.42578125,
+      "live_bundles": 1
+    },
+    {
+      "check": "after 1",
+      "states": 9,
+      "heap_cur_mb": 0.16901874542236328,
+      "heap_peak_mb": 0.26219654083251953,
+      "rss_mb": 103.73046875,
+      "live_bundles": 1
+    },
+    {
+      "check": "after 6",
+      "states": 53,
+      "heap_cur_mb": 0.16812705993652344,
+      "heap_peak_mb": 0.3060598373413086,
+      "rss_mb": 103.8203125,
+      "live_bundles": 1
+    },
+    {
+      "check": "after 11",
+      "states": 94,
+      "heap_cur_mb": 0.17098426818847656,
+      "heap_peak_mb": 0.3060598373413086,
+      "rss_mb": 103.9375,
+      "live_bundles": 1
+    },
+    {
+      "check": "after 16",
+      "states": 139,
+      "heap_cur_mb": 0.1873188018798828,
+      "heap_peak_mb": 0.3060598373413086,
+      "rss_mb": 103.94921875,
+      "live_bundles": 1
+    },
+    {
+      "check": "after 25",
+      "states": 218,
+      "heap_cur_mb": 0.18880939483642578,
+      "heap_peak_mb": 0.3119974136352539,
+      "rss_mb": 103.9765625,
+      "live_bundles": 1
+    }
+  ],
+  "g5_f": {
+    "context_transitions": 3,
+    "stale_reuse_observed": false,
+    "historical_retention": false
+  },
+  "g5_g": {
+    "deliberate_fallbacks": 1,
+    "subsequent_recoveries": 1,
+    "stale_observed": false,
+    "live_growth": false
+  },
+  "g5_h": {
+    "Np": 13,
+    "Ng": 1233,
+    "off_target": 1199,
+    "freqs": 1200,
+    "distinct_states": 15,
+    "max_live": 1,
+    "old_collectable": true
+  }
+}

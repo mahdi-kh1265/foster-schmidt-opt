@@ -8,6 +8,7 @@ import yaml
 
 from foster_eom.domain.eom import EOMModelSpec, EOMModelType, MotionalBranch
 from foster_eom.domain.frequency_plan import FrequencyPlan, FrequencyTarget
+from foster_eom.domain.objectives import DerivativeMode, OptimizationSpec
 from foster_eom.domain.project import ProjectSpec
 from foster_eom.domain.source import SourceMode, SourceSpec
 from foster_eom.domain.topology import TopologySearchSpec
@@ -54,9 +55,15 @@ def state_to_spec(state: ProjectState) -> ProjectSpec:
     )
 
     topology = TopologySearchSpec(
-        max_branches=state.topology.n_branches,
-        max_cells_per_branch=state.topology.n_cells_per_branch,
+        branch1_cells_max=state.topology.n_cells_per_branch,
+        branch2_cells_max=state.topology.n_cells_per_branch if state.topology.n_branches > 1 else 0,
+        branch1_cells_min=1,
+        branch2_cells_min=1 if state.topology.n_branches > 1 else 0,
         # Default pole settings handled by TopologySearchSpec defaults
+    )
+
+    optimization = OptimizationSpec(
+        local_derivative_mode=DerivativeMode.ANALYTICAL
     )
 
     return ProjectSpec(
@@ -64,6 +71,7 @@ def state_to_spec(state: ProjectState) -> ProjectSpec:
         eom=eom,
         frequencies=frequencies,
         topology=topology,
+        optimization=optimization,
     )
 
 
@@ -99,8 +107,8 @@ def spec_to_state(spec: ProjectSpec) -> ProjectState:
     )
 
     state.topology = TopologyParams(
-        n_branches=spec.topology.max_branches,
-        n_cells_per_branch=spec.topology.max_cells_per_branch,
+        n_branches=2 if spec.topology.branch2_cells_max > 0 else 1,
+        n_cells_per_branch=spec.topology.branch1_cells_max,
     )
 
     state.input_sha256 = state.compute_input_sha()
