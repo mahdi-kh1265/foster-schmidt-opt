@@ -35,10 +35,10 @@ class OptimizeVM:
             rows.append(
                 CandidateRow(
                     rank=i + 1,
-                    objective=c.objective_value,
+                    objective=c.base_objective_value + c.soft_penalty_total,
                     feasible=c.feasible,
                     near_feasible=c.near_feasible,
-                    numerical_status=c.numerical_status.value,
+                    numerical_status=c.numerical_status,
                 )
             )
 
