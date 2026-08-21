@@ -123,3 +123,54 @@ def test_g4_j_large_constraint_short():
     assert t_an.n_constraint_rows == 1234
     assert t_an.n_params == 13
     assert t_an.evaluator_unique_evaluations <= t_an.nfev + 2
+
+def test_g4_k_hidden_fd_spy():
+    """G4-K: Direct hidden-FD spy."""
+    ctx = _build_custom_case(n_cells=1)
+    x_start = np.array([0.5, 0.5, 0.5])
+    
+    import sys
+    
+    def run_with_spy(mode):
+        numdiff_calls = []
+        def trace_calls(frame, event, arg):
+            if event == 'call':
+                func_name = frame.f_code.co_name
+                if func_name == 'approx_derivative' and 'scipy' in frame.f_globals.get('__name__', ''):
+                    try:
+                        fun = frame.f_locals.get('fun')
+                        x0 = frame.f_locals.get('x0')
+                        if fun and x0 is not None:
+                            val = fun(x0)
+                            shape = np.atleast_2d(val).shape
+                            numdiff_calls.append(shape)
+                    except Exception:
+                        pass
+            return trace_calls
+
+        spec = _spec(mode, max_iter=2)
+        cache = DomainEvaluatorCache()
+        
+        sys.settrace(trace_calls)
+        try:
+            polish_basin(_basin(ctx, cache, x_start), 0, ctx, cache, spec)
+        finally:
+            sys.settrace(None)
+            
+        return numdiff_calls
+
+    calls_an = run_with_spy(DerivativeMode.ANALYTICAL)
+    calls_fd = run_with_spy(DerivativeMode.REFERENCE_FD)
+    
+    # Analyze calls
+    an_obj_fd = sum(1 for shape in calls_an if shape[1] == 1)
+    an_con_fd = sum(1 for shape in calls_an if shape[1] > 1)
+    
+    fd_obj_fd = sum(1 for shape in calls_fd if shape[1] == 1)
+    fd_con_fd = sum(1 for shape in calls_fd if shape[1] > 1)
+    
+    assert an_obj_fd == 0, "ANALYTICAL should not use numerical differentiation for objective"
+    assert an_con_fd == 0, "ANALYTICAL should not use numerical differentiation for constraints"
+    
+    assert fd_obj_fd > 0, "REFERENCE_FD must use numerical differentiation for objective"
+    assert fd_con_fd > 0, "REFERENCE_FD must use numerical differentiation for constraints"
