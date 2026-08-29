@@ -85,6 +85,7 @@ def _real_candidate(**overrides) -> CandidateResult:
         de_generation_reached=25,
         pre_polish_objective=0.15,
         local_polish_method="trust-constr",
+        local_polish_outcome="polished_retained",
         local_polish_success=True,
         local_polish_iterations=42,
         local_polish_evaluations=120,
@@ -272,30 +273,23 @@ class TestSynthesizePageResultRendering:
             c.numerical_status  # column 4  (must be str, not enum)
 
     def test_detail_text_rendering(self):
-        """Simulates _on_selection detail rendering against real CandidateResult."""
+        """Simulates _on_selection detail rendering against real CandidateResult.
+
+        Updated for P12-GUI2 closeout: uses CandidateDetailVM + constraint summary.
+        """
         c = _real_candidate()
-        # These are the exact accesses from synthesize_page.py L321-337
-        lines = [
-            "Candidate #1",
-            f"Topology: {c.topology_id}",
-            f"Objective: {c.base_objective_value:.6f} (base) + {c.soft_penalty_total:.6f} (soft)",
-            f"Feasible: {c.feasible}  |  V_max: {c.v_max:.4f}",
-            f"Numerical: {c.numerical_status}",
-            f"Local polish method: {c.local_polish_method}",
-            f"Seed source: {c.seed_source}",
-            "",
-            "Objective terms:",
-        ]
-        for k, v in c.objective_terms.items():
-            lines.append(f"  {k}: {v:.6f}")
-        lines.append("")
-        lines.append("Constraint margins:")
-        for k, v in c.constraint_margins.items():
-            lines.append(f"  {k}: {v:.4f}")
-        text = "\n".join(lines)
-        assert "topology_id" not in text or "topo_a" in text
-        assert "0.100000 (base)" in text
-        assert "trust-constr" in text
+        from foster_eom.gui.view_models.optimize_vm import (
+            CandidateDetailVM,
+            format_polish_provenance,
+        )
+        vm = CandidateDetailVM.from_candidate(1, c)
+        polish_lines = format_polish_provenance(vm.local_polish_method, vm.local_polish_outcome)
+        # Key assertions: provenance is non-blank and contains method
+        assert any("trust-constr" in line for line in polish_lines)
+        assert any("polished candidate retained" in line for line in polish_lines)
+        # Constraint summary uses descriptor names (not hard_N)
+        assert vm.total_hard == len(c.constraint_margins)
+        assert vm.violated_count == len([v for v in c.constraint_margins.values() if v < 0])
 
 
 # ===========================================================================
@@ -319,6 +313,7 @@ class TestCandidateResultSchemaCompleteness:
         _ = c.topology_id
         _ = c.v_max
         _ = c.local_polish_method
+        _ = c.local_polish_outcome
         _ = c.seed_source
         _ = c.objective_terms
         _ = c.constraint_margins

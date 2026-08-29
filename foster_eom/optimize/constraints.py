@@ -315,6 +315,97 @@ def _descriptor_sort_key(d: ConstraintDescriptor) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Human-readable constraint labels (diagnostic API — no evaluator coupling)
+# ---------------------------------------------------------------------------
+
+
+def _format_freq(f_hz: float) -> str:
+    """Format a frequency with SI prefix for display."""
+    if f_hz >= 1e9:
+        return f"{f_hz / 1e9:.2f} GHz"
+    if f_hz >= 1e6:
+        return f"{f_hz / 1e6:.2f} MHz"
+    if f_hz >= 1e3:
+        return f"{f_hz / 1e3:.1f} kHz"
+    return f"{f_hz:.1f} Hz"
+
+
+def human_label(
+    desc: ConstraintDescriptor,
+    evaluation_frequencies_hz: tuple[float, ...] = (),
+) -> str:
+    """Convert a ConstraintDescriptor into a physics-readable label.
+
+    This is a pure diagnostic function — it does NOT affect constraint
+    evaluation, ordering, normalization, or any optimizer behavior.
+
+    Parameters
+    ----------
+    desc : ConstraintDescriptor
+        The descriptor to label.
+    evaluation_frequencies_hz : tuple[float, ...]
+        Evaluation frequency grid (needed to resolve ``freq_index``).
+
+    Returns
+    -------
+    str
+        A human-readable label such as ``"Γ ≤ limit @ 1.00 MHz"``.
+    """
+    ct = desc.constraint_type
+    fi = desc.freq_index
+
+    # Resolve frequency string
+    freq_str = ""
+    if fi is not None and 0 <= fi < len(evaluation_frequencies_hz):
+        freq_str = f" @ {_format_freq(evaluation_frequencies_hz[fi])}"
+
+    _LABELS: dict[str, str] = {
+        "gamma": f"Γ ≤ limit{freq_str}",
+        "r_max": f"R_in ≤ limit{freq_str}",
+        "r_min": f"R_in ≥ limit{freq_str}",
+        "x_bound": f"|X_in| ≤ limit{freq_str}",
+        "i_source": f"I_source ≤ limit{freq_str}",
+        "v_min": f"V_EOM ≥ target{freq_str}",
+        "v_max": f"V_EOM ≤ limit{freq_str}",
+        "offtarget": f"Off-target V_EOM ≤ limit{freq_str}",
+    }
+
+    if ct in _LABELS:
+        return _LABELS[ct]
+
+    branch = desc.branch
+    m = desc.cell_index
+
+    if ct == "comp_L_hi" and branch is not None and m is not None:
+        return f"L_b{branch}[{m}] ≤ L_max"
+    if ct == "comp_L_lo" and branch is not None and m is not None:
+        return f"L_b{branch}[{m}] ≥ L_min"
+    if ct == "comp_C_hi" and branch is not None and m is not None:
+        return f"C_b{branch}[{m}] ≤ C_max"
+    if ct == "comp_C_lo" and branch is not None and m is not None:
+        return f"C_b{branch}[{m}] ≥ C_min"
+    if ct == "pole_sep" and branch is not None and m is not None:
+        return f"Pole separation b{branch}[{m}-{m + 1}]"
+
+    # Custom or unknown — use the descriptor name as-is
+    return desc.name
+
+
+def layout_human_labels(
+    layout: ConstraintLayout,
+    evaluation_frequencies_hz: tuple[float, ...] = (),
+) -> tuple[str, ...]:
+    """Return human-readable labels for all descriptors in layout order.
+
+    This is a pure diagnostic convenience function.  It does NOT change
+    the constraint layout, order, or evaluation semantics.
+    """
+    return tuple(
+        human_label(d, evaluation_frequencies_hz) for d in layout.descriptors
+    )
+
+
+# ---------------------------------------------------------------------------
 # Layout compiler
 # ---------------------------------------------------------------------------
 

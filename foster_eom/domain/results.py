@@ -170,6 +170,7 @@ class CandidateResult(BaseModel):
     de_generation_reached: int = 0
     pre_polish_objective: float | None = None
     local_polish_method: str = ""
+    local_polish_outcome: str = ""
     local_polish_success: bool = False
     local_polish_iterations: int = 0
     local_polish_evaluations: int = 0

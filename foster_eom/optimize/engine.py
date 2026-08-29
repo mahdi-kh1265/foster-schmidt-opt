@@ -37,7 +37,10 @@ from foster_eom.optimize.evaluator import (
     build_evaluation_context,
     evaluate,
 )
-from foster_eom.optimize.local_polish import polish_top_k
+from foster_eom.optimize.local_polish import (
+    PolishResult,
+    polish_top_k,
+)
 from foster_eom.optimize.objective import ObjectiveConfig
 from foster_eom.optimize.preflight import PreflightReport, run_preflight
 
@@ -94,11 +97,13 @@ class OptimizationResult:
 def _build_candidate_result(
     result: EvaluationResult,
     domain: ContinuousOptimizationDomain,
+    context: EvaluationContext,
     termination: str,
     seed_source: str = "foster_schmidt_04b",
     de_evaluations_used: int = 0,
     pre_polish_objective: float | None = None,
     polish_method: str = "",
+    polish_outcome: str = "",
     polish_success: bool = False,
     polish_iterations: int = 0,
     polish_evals: int = 0,
@@ -142,6 +147,9 @@ def _build_candidate_result(
     # Objective terms
     obj_terms = dict(result.objective_terms)
 
+    # Constraint margins
+    margin_keys = [f"hard_{i}" for i in range(len(result.hard_margins))]
+
     cr = CandidateResult(
         candidate_id=f"{domain.domain_id[:8]}_{id(result):x}",
         topology_id=domain.domain_id,
@@ -168,7 +176,7 @@ def _build_candidate_result(
         # Constraints
         constraint_margins=dict(
             zip(
-                [f"hard_{i}" for i in range(len(result.hard_margins))],
+                margin_keys,
                 result.hard_margins,
                 strict=False,
             )
@@ -184,6 +192,7 @@ def _build_candidate_result(
         de_evaluations_used=de_evaluations_used,
         pre_polish_objective=pre_polish_objective,
         local_polish_method=polish_method,
+        local_polish_outcome=polish_outcome,
         local_polish_success=polish_success,
         local_polish_iterations=polish_iterations,
         local_polish_evaluations=polish_evals,
@@ -463,7 +472,9 @@ def run_optimization(
         analytic_best = min(seed_res, key=deb_key) if seed_res else None
 
         def _build_checkpoint(
-            cache: DomainEvaluatorCache = cache, domain: ContinuousOptimizationDomain = domain
+            cache: DomainEvaluatorCache = cache,
+            domain: ContinuousOptimizationDomain = domain,
+            ctx: EvaluationContext = ctx,
         ) -> None:
             if not checkpoint_path:
                 return
@@ -481,6 +492,7 @@ def run_optimization(
                 ccr = _build_candidate_result(
                     result=best_curr,
                     domain=domain,
+                    context=ctx,
                     termination="checkpoint",
                     de_evaluations_used=cache.n_unique_evaluations,
                 )
@@ -590,17 +602,37 @@ def run_optimization(
         domain_final.sort(key=deb_key)
 
         # Build CandidateResult for each
-        polish_map = {pr.pre_polish.x: pr for pr in polish_results}
+        # Map both pre-polish AND post-polish/retained x-vectors so that
+        # whichever candidate survives Deb retention can be looked up.
+        polish_map: dict[tuple[float, ...], PolishResult] = {}
+        for pr in polish_results:
+            polish_map[pr.pre_polish.x] = pr
+            polish_map[pr.post_polish.x] = pr
+            polish_map[pr.retained.x] = pr
+
+        from foster_eom.optimize.local_polish import PolishResult as _PR
+
+        def _polish_outcome(pr: _PR, res: EvaluationResult) -> str:
+            """Determine the human-facing polish outcome label."""
+            tel = pr.telemetry
+            if tel.requested_mode == "analytical" and tel.derivative_mode == "reference_fd":
+                return "fd_fallback"
+            if res.x == pr.post_polish.x:
+                return "polished_retained"
+            return "pre_polish_retained"
 
         for res in domain_final:
             polish_res = polish_map.get(res.x)
+            outcome = _polish_outcome(polish_res, res) if polish_res is not None else "not_selected"
             cr = _build_candidate_result(
                 result=res,
                 domain=domain,
+                context=ctx,
                 termination=de_diag.de_termination,
                 de_evaluations_used=cache.n_unique_evaluations,
                 pre_polish_objective=polish_res.pre_polish.objective_value if polish_res else None,
                 polish_method=polish_res.method_used if polish_res else "",
+                polish_outcome=outcome,
                 polish_success=polish_res.success if polish_res else False,
                 polish_iterations=polish_res.n_iterations if polish_res else 0,
                 polish_evals=polish_res.n_evaluations if polish_res else 0,

@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 from foster_eom.gui.state import ProjectState
 from foster_eom.gui.view_models.optimize_vm import OptimizeVM
 from foster_eom.gui.workers.optimize_worker import OptimizeWorker
@@ -318,21 +317,86 @@ class SynthesizePage(QWidget):
             return
         if 0 <= row < len(self._result.candidates):
             c = self._result.candidates[row]
-            lines = [
-                f"Candidate #{row + 1}",
-                f"Topology: {c.topology_id}",
-                f"Objective: {c.base_objective_value:.6f} (base) + {c.soft_penalty_total:.6f} (soft)",
-                f"Feasible: {c.feasible}  |  V_max: {c.v_max:.4f}",
-                f"Numerical: {c.numerical_status}",
-                f"Local polish method: {c.local_polish_method}",
-                f"Seed source: {c.seed_source}",
-                "",
-                "Objective terms:",
-            ]
-            for k, v in c.objective_terms.items():
+
+            from foster_eom.gui.adapter import state_to_spec
+            from foster_eom.gui.view_models.optimize_vm import (
+                CandidateDetailVM,
+                format_polish_provenance,
+            )
+            from foster_eom.optimize.constraints import human_label
+            from foster_eom.optimize.context import compile_evaluation_context  # type: ignore
+
+            label_map = {}
+            try:
+                spec = state_to_spec(self._state)
+                ctx = compile_evaluation_context(spec)
+                if ctx.hard_layout:
+                    for i, d in enumerate(ctx.hard_layout.descriptors):
+                        label_map[f"hard_{i}"] = human_label(d, ctx.evaluation_frequencies_hz)
+            except Exception:
+                pass  # Fallback gracefully if context compilation fails
+
+            vm = CandidateDetailVM.from_candidate(row + 1, c, label_map=label_map)
+
+            lines: list[str] = []
+
+            # Header
+            lines.append(f"Candidate #{vm.rank}")
+            lines.append(f"Topology: {vm.topology_id}")
+            lines.append(
+                f"Objective: {vm.objective_base:.6f} (base) + {vm.objective_soft:.6f} (soft)"
+            )
+            lines.append(f"Feasible: {vm.feasible}  |  V_max: {vm.v_max:.6f}")
+            lines.append(f"Numerical: {vm.numerical_status}")
+            lines.append("")
+
+            # Polish provenance
+            polish_lines = format_polish_provenance(
+                vm.local_polish_method, vm.local_polish_outcome
+            )
+            lines.extend(polish_lines)
+            lines.append(f"Seed source: {vm.seed_source}")
+            lines.append("")
+
+            # Objective terms
+            lines.append("Objective terms:")
+            for k, v in vm.objective_terms.items():
                 lines.append(f"  {k}: {v:.6f}")
             lines.append("")
-            lines.append("Constraint margins:")
-            for k, v in c.constraint_margins.items():
-                lines.append(f"  {k}: {v:.4f}")
+
+            # Constraint summary
+            lines.append(
+                f"Hard constraints: {vm.total_hard} total | "
+                f"{vm.violated_count} violated | v_max = {vm.v_max:.6f}"
+            )
+            lines.append("")
+
+            # Violated constraints
+            if vm.violated:
+                lines.append("── Violated constraints (worst first) ──")
+                for r in vm.violated:
+                    lines.append(f"  {r.label}: margin = {r.margin:.6f}")
+                lines.append("")
+            else:
+                lines.append("No hard-constraint violations.")
+                lines.append("")
+
+            # Closest active constraints
+            if vm.closest_active:
+                lines.append("── Closest active constraints ──")
+                for r in vm.closest_active:
+                    lines.append(f"  {r.label}: margin = {r.margin:.6f}")
+                lines.append("")
+
+            # Full list indicator
+            remaining = vm.total_hard - vm.violated_count - len(vm.closest_active)
+            if remaining > 0:
+                lines.append(
+                    f"[{remaining} additional constraints not shown — "
+                    f"all with margin > {vm.closest_active[-1].margin:.4f}]"
+                    if vm.closest_active
+                    else f"[{remaining} additional constraints not shown]"
+                )
+
             self.detail_text.setPlainText("\n".join(lines))
+
