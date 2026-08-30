@@ -18,6 +18,7 @@ Value code conventions (Coilcraft):
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -118,12 +119,28 @@ def decode_coilcraft_filename(stem: str) -> tuple[str, str, float | None]:
     Some filenames use non-standard codes (e.g. 'WA3096-AL') — these will
     have value_h=None and will be skipped.
     """
-    parts = stem.split("-", 1)
-    if len(parts) != 2:
-        return stem, stem, None
-    series, val_code = parts
-    value_h = decode_coilcraft_value(val_code)
-    return series, stem, value_h
+    if "-" in stem:
+        parts = stem.split("-", 1)
+        series, val_code = parts
+        value_h = decode_coilcraft_value(val_code)
+        if value_h is not None:
+            return series, stem, value_h
+
+    if "_" in stem:
+        parts = stem.split("_", 1)
+        series, val_code = parts
+        value_h = decode_coilcraft_value(val_code)
+        if value_h is not None:
+            return series, stem, value_h
+
+    m = re.match(r"^(\d{4}[A-Za-z]{2})(.+)$", stem)
+    if m:
+        series, val_code = m.groups()
+        value_h = decode_coilcraft_value(val_code)
+        if value_h is not None:
+            return series, stem, value_h
+
+    return stem, stem, None
 
 
 class CoilcraftS2PImporter(CatalogImporter):
