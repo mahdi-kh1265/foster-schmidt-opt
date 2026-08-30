@@ -324,12 +324,12 @@ class SynthesizePage(QWidget):
                 format_polish_provenance,
             )
             from foster_eom.optimize.constraints import human_label
-            from foster_eom.optimize.context import compile_evaluation_context  # type: ignore
+            from foster_eom.optimize.evaluator import build_evaluation_context
 
             label_map = {}
             try:
                 spec = state_to_spec(self._state)
-                ctx = compile_evaluation_context(spec)
+                ctx = build_evaluation_context(spec)
                 if ctx.hard_layout:
                     for i, d in enumerate(ctx.hard_layout.descriptors):
                         label_map[f"hard_{i}"] = human_label(d, ctx.evaluation_frequencies_hz)
