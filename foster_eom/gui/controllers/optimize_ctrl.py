@@ -30,6 +30,7 @@ class OptimizeCtrl:
 
         eom_model = build_eom_model(spec.eom)
         f_targets_hz = np.array([t.frequency_hz for t in spec.frequencies.enabled_targets])
+        voltage_targets_rms_v = tuple(t.voltage_target_rms_v for t in spec.frequencies.enabled_targets)
 
         seed_result = generate_seeds(
             r_match_ohm=spec.source.z_source_real_ohm,
@@ -51,6 +52,7 @@ class OptimizeCtrl:
             target_frequencies_hz=tuple(f_targets_hz),
             sweep_f_min_hz=spec.frequencies.sweep_f_min_hz,
             sweep_f_max_hz=spec.frequencies.sweep_f_max_hz,
+            voltage_targets_rms_v=voltage_targets_rms_v,
             cancel_event=cancel_event,
             progress_callback=progress_callback,
         )

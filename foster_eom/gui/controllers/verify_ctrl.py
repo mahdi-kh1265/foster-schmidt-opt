@@ -111,7 +111,10 @@ class VerifyCtrl:
 
         from foster_eom.analysis.sweep import SweepSpec
         target_hz = tuple(t.frequency_hz for t in spec.frequencies.targets)
-        sweep_spec = SweepSpec.from_targets(target_hz=target_hz)
+        sweep_spec = SweepSpec(
+            f_min_hz=spec.frequencies.sweep_f_min_hz,
+            f_max_hz=spec.frequencies.sweep_f_max_hz,
+        )
 
         sweep_res = compute_adaptive_sweep(
             graph=built.graph,
