@@ -31,6 +31,89 @@ except ImportError:
     _MPL_OK = False
 
 
+class PlotCursor:
+    """Interactive engineering cursor for Matplotlib axes."""
+    def __init__(self, canvas, axes, freqs_mhz, formatters):
+        self.canvas = canvas
+        self.axes = axes if isinstance(axes, list) else [axes]
+        import numpy as np
+        self.freqs_mhz = np.array(freqs_mhz)
+        self.formatters = formatters
+
+        self.hover_lines = [ax.axvline(x=0, color='gray', linestyle=':', visible=False, zorder=90) for ax in self.axes]
+        self.pinned_lines = [ax.axvline(x=0, color='blue', linestyle='--', visible=False, zorder=90) for ax in self.axes]
+
+        ax = self.axes[0]
+        self.hover_text = ax.text(0.05, 0.95, "", transform=ax.transAxes,
+                                  va='top', ha='left',
+                                  bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9),
+                                  visible=False, zorder=100)
+        self.pinned_text = ax.text(0.95, 0.95, "", transform=ax.transAxes,
+                                   va='top', ha='right',
+                                   bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.9),
+                                   visible=False, zorder=100)
+
+        self.canvas.mpl_connect('motion_notify_event', self.on_hover)
+        self.canvas.mpl_connect('button_press_event', self.on_click)
+        self.canvas.mpl_connect('key_press_event', self.on_key)
+
+    def find_nearest_idx(self, x):
+        import numpy as np
+        return (np.abs(self.freqs_mhz - x)).argmin()
+
+    def get_text(self, idx):
+        return "\n".join(f(idx) for f in self.formatters)
+
+    def on_hover(self, event):
+        if event.inaxes not in self.axes:
+            for hl in self.hover_lines:
+                hl.set_visible(False)
+            self.hover_text.set_visible(False)
+            self.canvas.draw_idle()
+            return
+
+        idx = self.find_nearest_idx(event.xdata)
+        x_val = self.freqs_mhz[idx]
+
+        for hl in self.hover_lines:
+            hl.set_xdata([x_val, x_val])
+            hl.set_visible(True)
+
+        self.hover_text.set_text(self.get_text(idx))
+        self.hover_text.set_visible(True)
+        self.canvas.draw_idle()
+
+    def on_click(self, event):
+        if getattr(event, 'button', None) == 3:
+            self.clear_pinned()
+            return
+
+        if getattr(event, 'inaxes', None) not in self.axes:
+            return
+
+        if getattr(event, 'button', None) == 1:
+            idx = self.find_nearest_idx(event.xdata)
+            x_val = self.freqs_mhz[idx]
+
+            for pl in self.pinned_lines:
+                pl.set_xdata([x_val, x_val])
+                pl.set_visible(True)
+
+            self.pinned_text.set_text(self.get_text(idx))
+            self.pinned_text.set_visible(True)
+            self.canvas.draw_idle()
+
+    def on_key(self, event):
+        if getattr(event, 'key', None) == 'escape':
+            self.clear_pinned()
+
+    def clear_pinned(self):
+        for pl in self.pinned_lines:
+            pl.set_visible(False)
+        self.pinned_text.set_visible(False)
+        self.canvas.draw_idle()
+
+
 class VerifyPage(QWidget):
     """P06 verification page with plots and tables."""
 
@@ -196,7 +279,7 @@ class VerifyPage(QWidget):
 
         # Update plots
         if _MPL_OK and self._sweep_result is not None:
-            self._plot_sweep(self._sweep_result, z_in_sweep)
+            self._plot_sweep(self._sweep_result, z_in_sweep, vm.q_metrics)
 
     def _on_error(self, err_type: str, err_msg: str) -> None:
         self.progress.setVisible(False)
@@ -205,17 +288,44 @@ class VerifyPage(QWidget):
         self.lbl_status.setStyleSheet("color: red;")
         self.warn_label.setText(err_msg)
 
-    def _plot_sweep(self, sweep, z_in_sweep: list[complex | None]) -> None:
+    def _plot_sweep(self, sweep, z_in_sweep: list[complex | None], q_metrics: list = []) -> None:
         """Plot impedance, match, and EOM voltage from sweep result."""
         try:
             freqs_mhz = [f / 1e6 for f in sweep.frequencies_hz]
 
-            # Filter None values out of z_in_sweep
             import cmath
             import math
             valid_z = [(f, z) for f, z in zip(freqs_mhz, z_in_sweep, strict=True) if z is not None]
 
-            # Z_in: magnitude and phase
+            targets = []
+            if self._state:
+                for f_hz, v_rms in zip(self._state.frequencies_hz, self._state.voltage_targets_rms_v):
+                    targets.append({"freq_hz": f_hz, "v_rms": v_rms})
+            gamma_max = self._state.match_params.gamma_max if self._state else None
+
+            v_lines = []
+            for t in targets:
+                v_lines.append((t['freq_hz'] / 1e6, 'green', '--', 0.5))
+            for q in q_metrics:
+                if getattr(q, 'f0_hz', None):
+                    v_lines.append((q.f0_hz / 1e6, 'purple', ':', 0.7))
+                if getattr(q, 'f_low_hz', None):
+                    v_lines.append((q.f_low_hz / 1e6, 'purple', ':', 0.7))
+                if getattr(q, 'f_high_hz', None):
+                    v_lines.append((q.f_high_hz / 1e6, 'purple', ':', 0.7))
+
+            def add_overlays(ax, is_voltage=False, is_gamma=False):
+                for x, color, ls, alpha in v_lines:
+                    ax.axvline(x, color=color, linestyle=ls, alpha=alpha, zorder=5)
+                if is_gamma and gamma_max is not None:
+                    ax.axhline(gamma_max, color='red', linestyle='--', alpha=0.5, zorder=5)
+                if is_voltage:
+                    for t in targets:
+                        if t['v_rms'] is not None:
+                            ax.axhline(t['v_rms'], color='red', linestyle='--', alpha=0.5, zorder=5)
+
+            self._cursors = []
+
             self.fig_zin.clear()
             ax1, ax2 = self.fig_zin.subplots(1, 2)
             if valid_z:
@@ -226,16 +336,22 @@ class VerifyPage(QWidget):
                 ax1.set_ylabel("|Z_in| (Ω)")
                 ax1.set_title("Input Impedance Magnitude")
                 ax1.grid(True, alpha=0.3)
+                add_overlays(ax1)
 
                 ax2.plot(f_z, [cmath.phase(z) * 180 / math.pi for z in z_vals])
                 ax2.set_xlabel("Frequency (MHz)")
                 ax2.set_ylabel("∠Z_in (°)")
                 ax2.set_title("Input Impedance Phase")
                 ax2.grid(True, alpha=0.3)
+                add_overlays(ax2)
+
+                def fmt_zin(idx):
+                    z = z_vals[idx]
+                    return f"f = {f_z[idx]:.4f} MHz\n|Z_in| = {abs(z):.2f} Ω\nphase = {cmath.phase(z)*180/math.pi:.2f}°\nR = {z.real:.2f} Ω\nX = {z.imag:.2f} Ω"
+                self._cursors.append(PlotCursor(self.canvas_zin, [ax1, ax2], f_z, [fmt_zin]))
             self.fig_zin.tight_layout()
             self.canvas_zin.draw()
 
-            # Gamma
             self.fig_gamma.clear()
             ax_g = self.fig_gamma.add_subplot(111)
             valid_g = [(f, g) for f, g in zip(freqs_mhz, sweep.gamma_mag, strict=True) if g is not None]
@@ -244,13 +360,18 @@ class VerifyPage(QWidget):
                 g_vals = [x[1] for x in valid_g]
                 ax_g.plot(f_g, g_vals)
                 ax_g.set_ylabel("|Γ|")
+                def fmt_gamma(idx):
+                    g = g_vals[idx]
+                    rl = -20 * math.log10(g) if g > 1e-12 else float('inf')
+                    return f"f = {f_g[idx]:.4f} MHz\n|Γ| = {g:.4f}\nRL = {rl:.2f} dB"
+                self._cursors.append(PlotCursor(self.canvas_gamma, ax_g, f_g, [fmt_gamma]))
             ax_g.set_xlabel("Frequency (MHz)")
             ax_g.set_title("Reflection Coefficient")
             ax_g.grid(True, alpha=0.3)
+            add_overlays(ax_g, is_gamma=True)
             self.fig_gamma.tight_layout()
             self.canvas_gamma.draw()
 
-            # EOM voltage
             self.fig_veom.clear()
             ax_v = self.fig_veom.add_subplot(111)
             valid_v = [(f, v) for f, v in zip(freqs_mhz, sweep.v_eom_mag, strict=True) if v is not None]
@@ -259,9 +380,20 @@ class VerifyPage(QWidget):
                 v_vals = [x[1] for x in valid_v]
                 ax_v.plot(f_v, v_vals)
                 ax_v.set_ylabel("|V_EOM| (V)")
+                def fmt_veom(idx):
+                    fv = f_v[idx]
+                    v = v_vals[idx]
+                    nearest = min(targets, key=lambda t: abs(t['freq_hz']/1e6 - fv)) if targets else None
+                    if nearest and nearest['v_rms'] is not None:
+                        tgt_v = nearest['v_rms']
+                        err = (v - tgt_v) / tgt_v * 100 if tgt_v else 0
+                        return f"f = {fv:.4f} MHz\nV_EOM = {v:.4f} V RMS\ntarget = {tgt_v:.4f} V RMS\nerror = {err:.2f} %"
+                    return f"f = {fv:.4f} MHz\nV_EOM = {v:.4f} V RMS"
+                self._cursors.append(PlotCursor(self.canvas_veom, ax_v, f_v, [fmt_veom]))
             ax_v.set_xlabel("Frequency (MHz)")
             ax_v.set_title("EOM Voltage vs Frequency")
             ax_v.grid(True, alpha=0.3)
+            add_overlays(ax_v, is_voltage=True)
             self.fig_veom.tight_layout()
             self.canvas_veom.draw()
         except Exception:

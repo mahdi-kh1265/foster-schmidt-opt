@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QThreadPool
+from PySide6.QtCore import QThreadPool, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -30,6 +30,8 @@ from foster_eom.optimize.progress import ProgressUpdate
 
 class SynthesizePage(QWidget):
     """P05 optimization page with presets, cancel, and progress."""
+
+    optimization_finished = Signal(object)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -299,6 +301,10 @@ class SynthesizePage(QWidget):
                 self.table.setItem(i, 2, QTableWidgetItem("✓" if c.feasible else "✗"))
                 self.table.setItem(i, 3, QTableWidgetItem("✓" if c.near_feasible else "✗"))
                 self.table.setItem(i, 4, QTableWidgetItem(c.numerical_status))
+            if vm.candidates:
+                self.table.selectRow(0)
+
+        self.optimization_finished.emit(result)
 
     def _on_error(self, err_type: str, err_msg: str) -> None:
         self.progress_grp.setVisible(False)
@@ -310,7 +316,7 @@ class SynthesizePage(QWidget):
         self.lbl_result_status.setStyleSheet("font-weight: bold; font-size: 14px; color: red;")
         self.detail_text.setPlainText(err_msg)
 
-    def _on_selection(self, row: int, *_args: object) -> None:
+    def _on_selection(self, row: int, _col: int = 0) -> None:
         from foster_eom.optimize.engine import OptimizationResult
 
         if not isinstance(self._result, OptimizationResult):
@@ -318,24 +324,12 @@ class SynthesizePage(QWidget):
         if 0 <= row < len(self._result.candidates):
             c = self._result.candidates[row]
 
-            from foster_eom.gui.adapter import state_to_spec
             from foster_eom.gui.view_models.optimize_vm import (
                 CandidateDetailVM,
                 format_polish_provenance,
             )
-            from foster_eom.optimize.constraints import human_label
-            from foster_eom.optimize.evaluator import build_evaluation_context
 
-            label_map = {}
-            try:
-                spec = state_to_spec(self._state)
-                ctx = build_evaluation_context(spec)
-                if ctx.hard_layout:
-                    for i, d in enumerate(ctx.hard_layout.descriptors):
-                        label_map[f"hard_{i}"] = human_label(d, ctx.evaluation_frequencies_hz)
-            except Exception:
-                pass  # Fallback gracefully if context compilation fails
-
+            label_map = c.hard_constraint_labels or {}
             vm = CandidateDetailVM.from_candidate(row + 1, c, label_map=label_map)
 
             lines: list[str] = []

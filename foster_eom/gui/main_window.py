@@ -122,8 +122,12 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ready")
 
     def _connect_signals(self) -> None:
-        # When optimization finishes, propagate to downstream pages
         self.synthesize_page.btn_run.clicked.connect(self._on_inputs_committed)
+        self.synthesize_page.optimization_finished.connect(self._on_optimization_finished)
+
+    def _on_optimization_finished(self, _result: object) -> None:
+        """When optimization finishes, push the new result to downstream pages."""
+        self._update_downstream()
 
     # ------------------------------------------------------------------
     # Project lifecycle
@@ -151,7 +155,21 @@ class MainWindow(QMainWindow):
             self._project_path = path
             self.project_page.populate_from_state(self._state)
             if self._state.library_path:
-                self.library_page.set_library(self._state.library_path)
+                lib_path = Path(self._state.library_path)
+                if not lib_path.exists():
+                    msg = QMessageBox.question(self, "Library Not Found", f"Referenced library not found:\n{lib_path}\n\nWould you like to locate it?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    if msg == QMessageBox.StandardButton.Yes:
+                        new_path, _ = QFileDialog.getOpenFileName(self, "Locate Component Library", "", "FSEOM Library (*.fseom.db *.db);;All (*)")
+                        if new_path:
+                            self._state.library_path = new_path
+                            lib_path = Path(new_path)
+
+                if lib_path.exists():
+                    self.library_page.set_library(self._state.library_path)
+
+                    if self._state.library_sha and self.library_page.library_sha != self._state.library_sha:
+                        QMessageBox.warning(self, "Library SHA Mismatch", f"The library at {lib_path} has changed since this project was last saved.\n\nExpected: {self._state.library_sha}\nFound: {self.library_page.library_sha}")
+                    self._state.library_sha = self.library_page.library_sha
             self._update_downstream()
             self.setWindowTitle(f"Foster-Schmidt Optimizer — {Path(path).stem}")
             self.status_bar.showMessage(f"Loaded {path}")

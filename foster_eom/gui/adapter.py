@@ -23,7 +23,6 @@ from foster_eom.gui.state import (
 )
 from foster_eom.persistence.yaml_io import load_project, save_project
 
-
 # ---------------------------------------------------------------------------
 # Preset definitions (GUI policy — does NOT modify backend defaults)
 # ---------------------------------------------------------------------------

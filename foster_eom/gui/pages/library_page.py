@@ -9,6 +9,7 @@ from PySide6.QtCore import QItemSelection, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -32,6 +33,59 @@ from foster_eom.catalog.vendor_pack import VendorPackSpec
 from foster_eom.gui.controllers.library_ctrl import LibraryCtrl
 from foster_eom.gui.view_models.library_vm import LibraryStats
 
+
+class ImportVendorPackDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Import Vendor Pack")
+        self.setMinimumWidth(400)
+
+        lay = QVBoxLayout(self)
+
+        form = QFormLayout()
+
+        self.vendor_input = QLineEdit()
+        self.vendor_input.setPlaceholderText("e.g. Coilcraft, Murata")
+        form.addRow("Vendor Name:", self.vendor_input)
+
+        self.adapter_combo = QComboBox()
+        from foster_eom.catalog.vendor_pack import _ADAPTER_VERSIONS
+        self.adapter_combo.addItems(sorted(_ADAPTER_VERSIONS.keys()))
+        form.addRow("Adapter Format:", self.adapter_combo)
+
+        # Path selection
+        path_lay = QHBoxLayout()
+        self.path_input = QLineEdit()
+        self.path_input.setReadOnly(True)
+        btn_browse = QPushButton("Browse...")
+        btn_browse.clicked.connect(self._browse)
+        path_lay.addWidget(self.path_input)
+        path_lay.addWidget(btn_browse)
+        form.addRow("Source Path:", path_lay)
+
+        self.glob_input = QLineEdit()
+        self.glob_input.setText("**/*.*")
+        form.addRow("Glob Pattern:", self.glob_input)
+
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+        self.source_path = ""
+
+    def _browse(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Vendor Pack",
+            "",
+            "ZIP archives (*.zip);;Directories (*);;All (*)",
+        )
+        if path:
+            self.source_path = path
+            self.path_input.setText(path)
 
 class LibraryPage(QWidget):
     """Component library management page."""
@@ -284,28 +338,24 @@ class LibraryPage(QWidget):
         if not self._lib_path:
             return
 
-        # We need a VendorPackSpec, but here we just get a ZIP file.
-        # In a real UI we'd have a dialog to pick adapter/vendor, but the prompt
-        # just says to show structured import summary. Let's ask for the file and assume
-        # a Coilcraft adapter for manual ad-hoc testing, or better yet, since the prompt
-        # focuses on the demo, let's keep it simple.
+        dlg = ImportVendorPackDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            if not dlg.source_path or not dlg.vendor_input.text():
+                QMessageBox.warning(self, "Invalid Input", "Vendor name and source path are required.")
+                return
 
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Vendor Pack",
-            "",
-            "ZIP archives (*.zip);;Directories (*);;All (*)",
-        )
-        if path:
-            # We'll use a generic fallback for manual imports, but for acceptance tests
-            # we will use the demo creation button.
-            spec = VendorPackSpec(vendor="Manual", adapter="coilcraft_csv", source_path=Path(path))
+            spec = VendorPackSpec(
+                vendor=dlg.vendor_input.text().strip(),
+                adapter=dlg.adapter_combo.currentText(),
+                source_path=Path(dlg.source_path),
+                glob_pattern=dlg.glob_input.text().strip() or "**/*.*"
+            )
             try:
                 manifest = LibraryCtrl.import_pack(spec, self._lib_path)
                 self._load(self._lib_path)
                 self._show_import_report(manifest)
             except Exception as e:
-                QMessageBox.warning(self, "Import Error", f"Import failed without corrupting the DB:\n{e}")
+                QMessageBox.warning(self, "Import Error", f"Import failed without corrupting the DB:\\n{e}")
 
     def _show_import_report(self, manifest) -> None:
         dlg = QDialog(self)
