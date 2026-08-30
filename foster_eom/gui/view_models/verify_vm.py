@@ -9,9 +9,11 @@ from foster_eom.analysis.stress import StressSummary
 
 @dataclass(frozen=True)
 class QMetricsRow:
+    target_hz: float
     f0_hz: float
     q_3db: float
-    z_peak_ohm: float
+    usable_bandwidth_hz: float
+    status: str
 
 
 @dataclass(frozen=True)
@@ -37,9 +39,11 @@ class VerifyVM:
             for q in q_res.per_target:
                 q_rows.append(
                     QMetricsRow(
+                        target_hz=q.target_hz,
                         f0_hz=q.f0_hz if q.f0_hz is not None else float("nan"),
                         q_3db=q.q_voltage if q.q_voltage is not None else float("nan"),
-                        z_peak_ohm=float("nan"),  # Not available in current ResonanceQMetrics
+                        usable_bandwidth_hz=q.usable_bandwidth_hz if q.usable_bandwidth_hz is not None else float("nan"),
+                        status=str(q.status.value)
                     )
                 )
 

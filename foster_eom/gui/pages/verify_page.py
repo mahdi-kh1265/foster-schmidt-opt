@@ -89,8 +89,8 @@ class VerifyPage(QWidget):
 
         # Q / Resonance table
         self.q_table = QTableWidget()
-        self.q_table.setColumnCount(3)
-        self.q_table.setHorizontalHeaderLabels(["f₀ (MHz)", "Q (3dB)", "Z_peak (Ω)"])
+        self.q_table.setColumnCount(5)
+        self.q_table.setHorizontalHeaderLabels(["Target (MHz)", "f₀ (MHz)", "Q (3dB)", "Usable BW (MHz)", "Status"])
         self.q_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.q_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.q_table.setAlternatingRowColors(True)
@@ -161,7 +161,7 @@ class VerifyPage(QWidget):
         self.btn_run.setEnabled(True)
 
         try:
-            sweep_res, q_metrics, stress_res = result
+            sweep_res, q_metrics, stress_res, z_in_sweep = result
             self._sweep_result = sweep_res
             vm = VerifyVM.from_results(q_metrics, stress_res)
             self.lbl_status.setText("Done")
@@ -170,9 +170,11 @@ class VerifyPage(QWidget):
             # Populate Q table
             self.q_table.setRowCount(len(vm.q_metrics))
             for i, q in enumerate(vm.q_metrics):
-                self.q_table.setItem(i, 0, QTableWidgetItem(f"{q.f0_hz / 1e6:.4f}"))
-                self.q_table.setItem(i, 1, QTableWidgetItem(f"{q.q_3db:.2f}"))
-                self.q_table.setItem(i, 2, QTableWidgetItem(f"{q.z_peak_ohm:.2f}"))
+                self.q_table.setItem(i, 0, QTableWidgetItem(f"{q.target_hz / 1e6:.4f}"))
+                self.q_table.setItem(i, 1, QTableWidgetItem(f"{q.f0_hz / 1e6:.4f}" if q.f0_hz == q.f0_hz else "N/A"))
+                self.q_table.setItem(i, 2, QTableWidgetItem(f"{q.q_3db:.2f}" if q.q_3db == q.q_3db else "N/A"))
+                self.q_table.setItem(i, 3, QTableWidgetItem(f"{q.usable_bandwidth_hz / 1e6:.4f}" if q.usable_bandwidth_hz == q.usable_bandwidth_hz else "N/A"))
+                self.q_table.setItem(i, 4, QTableWidgetItem(q.status))
 
             # Populate stress table
             self.stress_table.setRowCount(len(vm.stress))
@@ -193,8 +195,8 @@ class VerifyPage(QWidget):
             return
 
         # Update plots
-        if _MPL_OK and sweep_res is not None:
-            self._plot_sweep(sweep_res)
+        if _MPL_OK and self._sweep_result is not None:
+            self._plot_sweep(self._sweep_result, z_in_sweep)
 
     def _on_error(self, err_type: str, err_msg: str) -> None:
         self.progress.setVisible(False)
@@ -203,44 +205,44 @@ class VerifyPage(QWidget):
         self.lbl_status.setStyleSheet("color: red;")
         self.warn_label.setText(err_msg)
 
-    def _plot_sweep(self, sweep) -> None:
+    def _plot_sweep(self, sweep, z_in_sweep: list[complex | None]) -> None:
         """Plot impedance, match, and EOM voltage from sweep result."""
         try:
             freqs_mhz = [f / 1e6 for f in sweep.frequencies_hz]
-            z_in = sweep.z_in
+
+            # Filter None values out of z_in_sweep
+            import cmath
+            import math
+            valid_z = [(f, z) for f, z in zip(freqs_mhz, z_in_sweep, strict=True) if z is not None]
 
             # Z_in: magnitude and phase
             self.fig_zin.clear()
             ax1, ax2 = self.fig_zin.subplots(1, 2)
-            ax1.semilogy(freqs_mhz, [abs(z) for z in z_in])
-            ax1.set_xlabel("Frequency (MHz)")
-            ax1.set_ylabel("|Z_in| (Ω)")
-            ax1.set_title("Input Impedance Magnitude")
-            ax1.grid(True, alpha=0.3)
+            if valid_z:
+                f_z = [x[0] for x in valid_z]
+                z_vals = [x[1] for x in valid_z]
+                ax1.semilogy(f_z, [abs(z) for z in z_vals])
+                ax1.set_xlabel("Frequency (MHz)")
+                ax1.set_ylabel("|Z_in| (Ω)")
+                ax1.set_title("Input Impedance Magnitude")
+                ax1.grid(True, alpha=0.3)
 
-            import cmath
-
-            ax2.plot(freqs_mhz, [cmath.phase(z) * 180 / 3.14159 for z in z_in])
-            ax2.set_xlabel("Frequency (MHz)")
-            ax2.set_ylabel("∠Z_in (°)")
-            ax2.set_title("Input Impedance Phase")
-            ax2.grid(True, alpha=0.3)
+                ax2.plot(f_z, [cmath.phase(z) * 180 / math.pi for z in z_vals])
+                ax2.set_xlabel("Frequency (MHz)")
+                ax2.set_ylabel("∠Z_in (°)")
+                ax2.set_title("Input Impedance Phase")
+                ax2.grid(True, alpha=0.3)
             self.fig_zin.tight_layout()
             self.canvas_zin.draw()
 
             # Gamma
             self.fig_gamma.clear()
             ax_g = self.fig_gamma.add_subplot(111)
-            if hasattr(sweep, "gamma"):
-                ax_g.plot(freqs_mhz, [abs(g) for g in sweep.gamma])
-                ax_g.set_ylabel("|Γ|")
-            elif hasattr(sweep, "reflection_coefficient"):
-                ax_g.plot(freqs_mhz, [abs(g) for g in sweep.reflection_coefficient])
-                ax_g.set_ylabel("|Γ|")
-            else:
-                z_ref = 50.0
-                gamma = [(z - z_ref) / (z + z_ref) for z in z_in]
-                ax_g.plot(freqs_mhz, [abs(g) for g in gamma])
+            valid_g = [(f, g) for f, g in zip(freqs_mhz, sweep.gamma_mag, strict=True) if g is not None]
+            if valid_g:
+                f_g = [x[0] for x in valid_g]
+                g_vals = [x[1] for x in valid_g]
+                ax_g.plot(f_g, g_vals)
                 ax_g.set_ylabel("|Γ|")
             ax_g.set_xlabel("Frequency (MHz)")
             ax_g.set_title("Reflection Coefficient")
@@ -251,11 +253,11 @@ class VerifyPage(QWidget):
             # EOM voltage
             self.fig_veom.clear()
             ax_v = self.fig_veom.add_subplot(111)
-            if hasattr(sweep, "v_eom_rms"):
-                ax_v.plot(freqs_mhz, sweep.v_eom_rms)
-                ax_v.set_ylabel("V_EOM (V rms)")
-            elif hasattr(sweep, "eom_voltage"):
-                ax_v.plot(freqs_mhz, [abs(v) for v in sweep.eom_voltage])
+            valid_v = [(f, v) for f, v in zip(freqs_mhz, sweep.v_eom_mag, strict=True) if v is not None]
+            if valid_v:
+                f_v = [x[0] for x in valid_v]
+                v_vals = [x[1] for x in valid_v]
+                ax_v.plot(f_v, v_vals)
                 ax_v.set_ylabel("|V_EOM| (V)")
             ax_v.set_xlabel("Frequency (MHz)")
             ax_v.set_title("EOM Voltage vs Frequency")

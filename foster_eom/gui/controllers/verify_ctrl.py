@@ -29,11 +29,12 @@ class VerifyCtrl:
 
         # Build graph from CandidateResult for P06
         import math
+
+        from foster_eom.domain.topology import LOrientation
         from foster_eom.foster.foster_form import FosterCell, FosterComponents
         from foster_eom.foster.network_builder import build_foster_circuit
-        from foster_eom.foster.sign_search import SignPattern
         from foster_eom.foster.schmidt import BranchRealization
-        from foster_eom.domain.topology import LOrientation
+        from foster_eom.foster.sign_search import SignPattern
         from foster_eom.foster.topology_enum import TopologyCandidate
         from foster_eom.models.factory import build_eom_model
 
@@ -70,7 +71,7 @@ class VerifyCtrl:
 
         br1 = BranchRealization(cand.branch1_realization) if cand.branch1_realization else BranchRealization.FINITE_FOSTER
         br2 = BranchRealization(cand.branch2_realization) if cand.branch2_realization else BranchRealization.FINITE_FOSTER
-        
+
         # P05 always uses orientation "shunt_series" or "series_shunt".
         # If empty, default to SHUNT_SERIES for safety.
         orient = LOrientation(cand.orientation) if cand.orientation else LOrientation.SHUNT_SERIES
@@ -119,7 +120,22 @@ class VerifyCtrl:
             spec=sweep_spec,
             target_hz=target_hz
         )
-        stress_res = compute_stress(sweep_res, spec.stress)
-        q_metrics = compute_q_metrics(sweep_res, spec.q_bandwidth)
+        stress_res = compute_stress(
+            graph=built.graph,
+            source_spec=spec.source,
+            sweep_result=sweep_res,
+            target_hz=target_hz
+        )
+        q_metrics = compute_q_metrics(
+            sweep_result=sweep_res,
+            target_hz=target_hz,
+            graph=built.graph,
+            source_spec=spec.source,
+            usable_bw_eta=spec.q_bandwidth.voltage_fraction_for_bandwidth
+        )
 
-        return sweep_res, q_metrics, stress_res
+        from foster_eom.circuit.solve import solve_circuit
+        sols = solve_circuit(built.graph, spec.source, sweep_res.frequencies_hz)
+        z_in_sweep = [sol.z_in for sol in sols]
+
+        return sweep_res, q_metrics, stress_res, z_in_sweep

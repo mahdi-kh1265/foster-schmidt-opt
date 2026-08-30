@@ -65,7 +65,7 @@ def test_verify_handoff_live_session():
     assert window.verify_page._opt_result is res
 
     verify_res = VerifyCtrl.run(state, res)
-    sweep_res, q_metrics, stress_res = verify_res
+    sweep_res, q_metrics, stress_res, z_in_sweep = verify_res
 
     assert sweep_res is not None
     # Now simulate the result coming back to VerifyPage
@@ -73,7 +73,25 @@ def test_verify_handoff_live_session():
 
     # 4. Assert UI populated tables
     assert window.verify_page.q_table.rowCount() >= 1
+    # Check that canonical metrics are plotted (no dummy columns)
+    assert window.verify_page.q_table.columnCount() == 5
     assert window.verify_page.stress_table.rowCount() >= 1
+
+    # Assert plots are drawn
+    assert len(window.verify_page.fig_zin.axes) == 2
+    ax1, ax2 = window.verify_page.fig_zin.axes
+    assert len(ax1.lines) > 0
+    assert len(ax1.lines[0].get_xdata()) > 0
+    assert len(ax2.lines) > 0
+    assert len(ax2.lines[0].get_ydata()) > 0
+
+    assert len(window.verify_page.fig_gamma.axes) == 1
+    ax_g = window.verify_page.fig_gamma.axes[0]
+    assert len(ax_g.lines) > 0
+
+    assert len(window.verify_page.fig_veom.axes) == 1
+    ax_v = window.verify_page.fig_veom.axes[0]
+    assert len(ax_v.lines) > 0
 
     # 5. UI failure-state robustness regression
     window.verify_page.btn_run.setEnabled(False)
