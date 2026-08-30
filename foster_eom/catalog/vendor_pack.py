@@ -62,8 +62,14 @@ _ADAPTER_VERSIONS: dict[str, str] = {
     "s2p_coilcraft": "1.0.0",
 }
 
+
+def get_available_adapters() -> list[str]:
+    """Return a sorted list of registered adapter identifiers."""
+    return sorted(_ADAPTER_VERSIONS.keys())
+
 # ---------------------------------------------------------------------------
 # Spec
+
 # ---------------------------------------------------------------------------
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelection, Qt
+from PySide6.QtCore import QItemSelection, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from foster_eom.catalog.component import ComponentKind, ModelTier
 from foster_eom.catalog.query import ComponentQuery
-from foster_eom.catalog.vendor_pack import VendorPackSpec
+from foster_eom.catalog.vendor_pack import VendorPackSpec, get_available_adapters
 from foster_eom.gui.controllers.library_ctrl import LibraryCtrl
 from foster_eom.gui.view_models.library_vm import LibraryStats
 
@@ -49,8 +49,7 @@ class ImportVendorPackDialog(QDialog):
         form.addRow("Vendor Name:", self.vendor_input)
 
         self.adapter_combo = QComboBox()
-        from foster_eom.catalog.vendor_pack import _ADAPTER_VERSIONS
-        self.adapter_combo.addItems(sorted(_ADAPTER_VERSIONS.keys()))
+        self.adapter_combo.addItems(get_available_adapters())
         form.addRow("Adapter Format:", self.adapter_combo)
 
         # Path selection
@@ -89,6 +88,8 @@ class ImportVendorPackDialog(QDialog):
 
 class LibraryPage(QWidget):
     """Component library management page."""
+
+    library_changed = Signal(str)  # Emits (lib_path)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -254,6 +255,7 @@ class LibraryPage(QWidget):
         )
         if path:
             self._load(path)
+            self.library_changed.emit(self._lib_path)
 
     def _create_library(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -267,6 +269,7 @@ class LibraryPage(QWidget):
             lib = ComponentLibrary(path)
             lib.close()
             self._load(path)
+            self.library_changed.emit(self._lib_path)
 
     def _create_demo_library(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -324,6 +327,7 @@ class LibraryPage(QWidget):
                 LibraryCtrl.import_pack(spec_l_s2p, self._lib_path)
                 LibraryCtrl.import_pack(spec_c_s2p, self._lib_path)
                 self._load(self._lib_path)
+                self.library_changed.emit(self._lib_path)
 
                 # Show structured report for the demo import
                 report = "Demo Library Created!\n\n"
@@ -353,6 +357,7 @@ class LibraryPage(QWidget):
             try:
                 manifest = LibraryCtrl.import_pack(spec, self._lib_path)
                 self._load(self._lib_path)
+                self.library_changed.emit(self._lib_path)
                 self._show_import_report(manifest)
             except Exception as e:
                 QMessageBox.warning(self, "Import Error", f"Import failed without corrupting the DB:\\n{e}")

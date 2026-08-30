@@ -124,6 +124,16 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         self.synthesize_page.btn_run.clicked.connect(self._on_inputs_committed)
         self.synthesize_page.optimization_finished.connect(self._on_optimization_finished)
+        self.library_page.library_changed.connect(self._on_library_changed)
+
+
+    def _on_library_changed(self, lib_path: str) -> None:
+        if not self._state:
+            return
+        self._state.library_path = lib_path
+        self._state.library_sha = self.library_page.library_sha
+        self._state.invalidate_library()
+        self._update_downstream()
 
     def _on_optimization_finished(self, _result: object) -> None:
         """When optimization finishes, push the new result to downstream pages."""
@@ -168,8 +178,22 @@ class MainWindow(QMainWindow):
                     self.library_page.set_library(self._state.library_path)
 
                     if self._state.library_sha and self.library_page.library_sha != self._state.library_sha:
-                        QMessageBox.warning(self, "Library SHA Mismatch", f"The library at {lib_path} has changed since this project was last saved.\n\nExpected: {self._state.library_sha}\nFound: {self.library_page.library_sha}")
-                    self._state.library_sha = self.library_page.library_sha
+                        reply = QMessageBox.question(
+                            self,
+                            "Library SHA Mismatch",
+                            f"The library at {lib_path} has changed since this project was last saved.\n\n"
+                            f"Expected: {self._state.library_sha}\n"
+                            f"Found: {self.library_page.library_sha}\n\n"
+                            "Do you want to permanently update the project to use this new library version? "
+                            "(If No, the project remains in a mismatched state, which may invalidate downstream artifacts)",
+                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                            QMessageBox.StandardButton.No
+                        )
+                        if reply == QMessageBox.StandardButton.Yes:
+                            self._state.library_sha = self.library_page.library_sha
+                            self._state.invalidate_library()
+                    else:
+                        self._state.library_sha = self.library_page.library_sha
             self._update_downstream()
             self.setWindowTitle(f"Foster-Schmidt Optimizer — {Path(path).stem}")
             self.status_bar.showMessage(f"Loaded {path}")
