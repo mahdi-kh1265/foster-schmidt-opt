@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from foster_eom.analysis.q_factor import ResonanceQMetrics
 from foster_eom.analysis.stress import StressSummary
 
 
@@ -30,25 +29,29 @@ class VerifyVM:
     stress: list[StressRow]
 
     @classmethod
-    def from_results(cls, q_res: list[ResonanceQMetrics], stress_res: StressSummary) -> VerifyVM:
-        q_rows = [
-            QMetricsRow(
-                f0_hz=q.f0_hz,
-                q_3db=q.q_3db,
-                z_peak_ohm=q.z_peak_ohm,
-            )
-            for q in q_res
-        ]
+    def from_results(cls, q_res: object, stress_res: StressSummary) -> VerifyVM:
+        from foster_eom.analysis.q_factor import QResult
+
+        q_rows = []
+        if isinstance(q_res, QResult):
+            for q in q_res.per_target:
+                q_rows.append(
+                    QMetricsRow(
+                        f0_hz=q.f0_hz if q.f0_hz is not None else float("nan"),
+                        q_3db=q.q_voltage if q.q_voltage is not None else float("nan"),
+                        z_peak_ohm=float("nan"),  # Not available in current ResonanceQMetrics
+                    )
+                )
 
         stress_rows = []
-        for element, s in stress_res.element_stresses.items():
+        for s in stress_res.elements:
             stress_rows.append(
                 StressRow(
-                    element=element,
-                    v_peak=s.v_peak,
-                    i_peak=s.i_peak,
-                    p_diss_w=s.p_diss_w,
-                    freq_hz=s.freq_hz,
+                    element=s.element_id,
+                    v_peak=max(s.sweep_v_peak_v, s.multitone_v_peak_bound_v),
+                    i_peak=max(s.sweep_i_peak_a, s.multitone_i_peak_bound_a),
+                    p_diss_w=s.sweep_p_loss_w,
+                    freq_hz=s.sweep_worst_v_freq_hz,
                 )
             )
 

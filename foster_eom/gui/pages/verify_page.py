@@ -160,27 +160,37 @@ class VerifyPage(QWidget):
         self.progress.setVisible(False)
         self.btn_run.setEnabled(True)
 
-        sweep_res, q_metrics, stress_res = result
-        self._sweep_result = sweep_res
-        vm = VerifyVM.from_results(q_metrics, stress_res)
-        self.lbl_status.setText("Done")
-        self.lbl_status.setStyleSheet("color: green;")
+        try:
+            sweep_res, q_metrics, stress_res = result
+            self._sweep_result = sweep_res
+            vm = VerifyVM.from_results(q_metrics, stress_res)
+            self.lbl_status.setText("Done")
+            self.lbl_status.setStyleSheet("color: green;")
 
-        # Populate Q table
-        self.q_table.setRowCount(len(vm.q_metrics))
-        for i, q in enumerate(vm.q_metrics):
-            self.q_table.setItem(i, 0, QTableWidgetItem(f"{q.f0_hz / 1e6:.4f}"))
-            self.q_table.setItem(i, 1, QTableWidgetItem(f"{q.q_3db:.2f}"))
-            self.q_table.setItem(i, 2, QTableWidgetItem(f"{q.z_peak_ohm:.2f}"))
+            # Populate Q table
+            self.q_table.setRowCount(len(vm.q_metrics))
+            for i, q in enumerate(vm.q_metrics):
+                self.q_table.setItem(i, 0, QTableWidgetItem(f"{q.f0_hz / 1e6:.4f}"))
+                self.q_table.setItem(i, 1, QTableWidgetItem(f"{q.q_3db:.2f}"))
+                self.q_table.setItem(i, 2, QTableWidgetItem(f"{q.z_peak_ohm:.2f}"))
 
-        # Populate stress table
-        self.stress_table.setRowCount(len(vm.stress))
-        for i, s in enumerate(vm.stress):
-            self.stress_table.setItem(i, 0, QTableWidgetItem(s.element))
-            self.stress_table.setItem(i, 1, QTableWidgetItem(f"{s.v_peak:.4f}"))
-            self.stress_table.setItem(i, 2, QTableWidgetItem(f"{s.i_peak:.6f}"))
-            self.stress_table.setItem(i, 3, QTableWidgetItem(f"{s.p_diss_w:.6f}"))
-            self.stress_table.setItem(i, 4, QTableWidgetItem(f"{s.freq_hz / 1e6:.4f}"))
+            # Populate stress table
+            self.stress_table.setRowCount(len(vm.stress))
+            for i, s in enumerate(vm.stress):
+                self.stress_table.setItem(i, 0, QTableWidgetItem(s.element))
+                self.stress_table.setItem(i, 1, QTableWidgetItem(f"{s.v_peak:.4f}"))
+                self.stress_table.setItem(i, 2, QTableWidgetItem(f"{s.i_peak:.6f}"))
+                self.stress_table.setItem(i, 3, QTableWidgetItem(f"{s.p_diss_w:.6f}"))
+                self.stress_table.setItem(i, 4, QTableWidgetItem(f"{s.freq_hz / 1e6:.4f}"))
+
+        except Exception as e:
+            import traceback
+            err_msg = traceback.format_exc()
+            self.lbl_status.setText("FAILED")
+            self.lbl_status.setStyleSheet("color: red;")
+            self.warn_label.setText(f"Rendering error: {e}")
+            print(f"VerifyPage rendering error:\n{err_msg}")
+            return
 
         # Update plots
         if _MPL_OK and sweep_res is not None:
