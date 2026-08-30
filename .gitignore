@@ -229,3 +229,4 @@ vendor_packs/
 *_vendor_pack/
 *.fseom.db
 models/
+import_manifests/
