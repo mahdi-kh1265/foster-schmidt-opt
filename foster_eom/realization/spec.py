@@ -46,7 +46,7 @@ class SlotSpec:
     fallback_policy : FallbackPolicy
         How to handle tier mismatches in ``build_model``.
     in_stock_only : bool
-        Restrict to in-stock parts.
+        Restrict to eligible model conditions.
     """
 
     element_id: str
