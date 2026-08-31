@@ -44,10 +44,11 @@ class RealizationDiagnostics:
     total_combos: int  # product of per-slot counts
     n_combos_generated: int
     n_combos_evaluated: int
-    n_mna_solves: int
-    search_exhaustive: bool
-    search_truncated: bool
-    budget_exhausted: bool
+    n_mna_solves: int = 0
+    search_exhaustive: bool = False
+    search_truncated: bool = False
+    budget_exhausted: bool = False
+    rejection_reasons: dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

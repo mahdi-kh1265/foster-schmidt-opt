@@ -65,10 +65,6 @@ def test_realization_pipeline_synthetic(tmp_path):
     LibraryCtrl.import_pack(spec_c, db_path)
     
     # Patch demo DB to satisfy STRICT frequency validity at 10 MHz
-    conn = sqlite3.connect(db_path)
-    conn.execute("UPDATE model_conditions SET validity_hz_lo = 1000.0, validity_hz_hi = 10000000000.0")
-    conn.commit()
-    conn.close()
     
     stats = LibraryCtrl.get_stats(db_path)
     state.library_path = db_path

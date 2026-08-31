@@ -101,7 +101,7 @@ def realize(
     # ------------------------------------------------------------------
     # 2. Build neighborhoods
     # ------------------------------------------------------------------
-    neighborhoods = build_neighborhoods(spec.slot_specs, library, k_max=spec.k_max)
+    neighborhoods, rejection_reasons = build_neighborhoods(spec.slot_specs, library, k_max=spec.k_max)
 
     # Check for empty slots
     failed_slots = [eid for eid, entries in neighborhoods.items() if not entries]
@@ -116,6 +116,7 @@ def realize(
             search_exhaustive=False,
             search_truncated=False,
             budget_exhausted=False,
+            rejection_reasons=rejection_reasons,
         )
         return RealizationResult(
             status="no_candidates",
@@ -212,6 +213,7 @@ def realize(
         search_exhaustive=search_exhaustive,
         search_truncated=search_truncated,
         budget_exhausted=budget.exhausted,
+        rejection_reasons=rejection_reasons,
     )
 
     return RealizationResult(
@@ -256,7 +258,8 @@ def _evaluate_combo(
                 freq_range=slot.freq_range_hz,
                 fallback=slot.fallback_policy,
             )
-        except Exception:
+        except Exception as e:
+            print("Exception in build_model:", e)
             # Model construction failure → skip combo
             return None
 
@@ -270,7 +273,8 @@ def _evaluate_combo(
             context,
             budget=budget,
         )
-    except Exception:
+    except Exception as e:
+        print("Exception in evaluate_with_overrides:", e)
         return None
 
     dk = deb_key(eval_result)

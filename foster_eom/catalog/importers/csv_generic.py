@@ -134,6 +134,8 @@ DEFAULT_COLUMN_MAP: dict[str, list[str]] = {
     "q_at_f_hz": ["q_freq", "q_at_f_hz", "q_frequency"],
     "esr_ohm": ["esr", "esr_ohm"],
     "dcr_ohm": ["dcr", "dcr_ohm", "dc_resistance"],
+    "validity_hz_lo": ["validity_hz_lo", "validity_min_hz", "freq_min_hz", "validity hz lo"],
+    "validity_hz_hi": ["validity_hz_hi", "validity_max_hz", "freq_max_hz", "validity hz hi"],
 }
 
 
@@ -324,6 +326,8 @@ class GenericCSVImporter(CatalogImporter):
         srf = parse_si_value(self._get_field(row, "srf_hz", resolved))
         q_val = parse_float_opt(self._get_field(row, "q_value", resolved))
         q_freq = parse_si_value(self._get_field(row, "q_at_f_hz", resolved))
+        val_hz_lo = parse_si_value(self._get_field(row, "validity_hz_lo", resolved))
+        val_hz_hi = parse_si_value(self._get_field(row, "validity_hz_hi", resolved))
 
         has_parametric = esr is not None or dcr is not None
         if has_parametric:
@@ -350,6 +354,8 @@ class GenericCSVImporter(CatalogImporter):
                 q_value=q_val,
                 esr_ohm=esr,
                 import_ts=now,
+                validity_hz_lo=val_hz_lo,
+                validity_hz_hi=val_hz_hi,
             )
 
         return comp, model_cond

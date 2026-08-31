@@ -159,20 +159,18 @@ def build_neighborhoods(
     slot_specs: tuple[SlotSpec, ...],
     library: ComponentLibrary,
     k_max: int = 5,
-) -> dict[str, list[NeighborhoodEntry]]:
+) -> tuple[dict[str, list[NeighborhoodEntry]], dict[str, str]]:
     """Query the catalog and return per-slot NeighborhoodEntry lists.
 
     Each entry binds a specific ``(component_id, model_condition_id)``
     resolved at this point so later catalog changes cannot affect the result.
 
-    Returns
     -------
-    dict[str, list[NeighborhoodEntry]]
-        Maps ``slot_spec.element_id`` → list of entries sorted by log_ratio
-        (closest first), truncated to k_max.
-        Empty list means no catalog parts found for that slot.
+    tuple[dict[str, list[NeighborhoodEntry]], dict[str, str]]
+        Tuple containing the neighborhoods dict and a dict mapping slot ID to a rejection reason string.
     """
     neighborhoods: dict[str, list[NeighborhoodEntry]] = {}
+    rejection_reasons: dict[str, str] = {}
 
     for slot in slot_specs:
         kind = _infer_kind(slot.element_id)
@@ -225,8 +223,19 @@ def build_neighborhoods(
         # Sort by log_ratio (closest first), truncate to k_max
         entries.sort(key=lambda e: e.log_ratio)
         neighborhoods[slot.element_id] = entries[:k_max]
+        
+        if not entries:
+            # Check what failed
+            if not components:
+                # Value range or kind filter failed
+                rejection_reasons[slot.element_id] = f"0 eligible. Rejection: Value range out of bounds ({v/r:.2g} to {v*r:.2g}) or missing package."
+            else:
+                # Components found but all models failed frequency/tier
+                nearest = sorted([c for c in components], key=lambda c: abs(c.value_nom - v))
+                nearest_vals = ", ".join(f"{c.value_nom:.2g}" for c in nearest[:3])
+                rejection_reasons[slot.element_id] = f"0 eligible. Nearest nominals: {nearest_vals}. Rejection: Frequency validity band mismatch or STRICT tier policy."
 
-    return neighborhoods
+    return neighborhoods, rejection_reasons
 
 
 def _select_best_mc(
