@@ -99,7 +99,6 @@ def test_p12_library_acceptance(tmp_path: Path):
     state.voltage_targets_rms_v = [1.0]
 
     from foster_eom.domain.results import CandidateResult
-    from foster_eom.optimize.engine import OptimizationResult
 
     c = CandidateResult(
         orientation="series",

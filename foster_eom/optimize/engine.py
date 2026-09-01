@@ -111,6 +111,8 @@ def _build_candidate_result(
     """Convert an EvaluationResult into a persisted CandidateResult."""
 
     # Per-target summaries
+    from foster_eom.optimize.constraints import human_label
+
     summaries = []
     for sol in result.target_solutions:
         summaries.append(
@@ -149,6 +151,13 @@ def _build_candidate_result(
 
     # Constraint margins
     margin_keys = [f"hard_{i}" for i in range(len(result.hard_margins))]
+    labels = {}
+    if context.hard_layout:
+        for i, d in enumerate(context.hard_layout.descriptors):
+            labels[f"hard_{i}"] = human_label(d, context.evaluation_frequencies_hz)
+
+    # Unpack branch coordinates
+    b1_coords, b2_coords = domain.variable_mapper.unpack(result.x)
 
     cr = CandidateResult(
         candidate_id=f"{domain.domain_id[:8]}_{id(result):x}",
@@ -164,6 +173,15 @@ def _build_candidate_result(
         branch1_has_linf=topo.branch1_has_linf,
         branch2_has_c0=topo.branch2_has_c0,
         branch2_has_linf=topo.branch2_has_linf,
+        # Foster coefficients (unpack)
+        k_residues_branch1=list(b1_coords.k_residues),
+        k_residues_branch2=list(b2_coords.k_residues),
+        k0_branch1=b1_coords.k0,
+        k_inf_branch1=b1_coords.k_inf,
+        k0_branch2=b2_coords.k0,
+        k_inf_branch2=b2_coords.k_inf,
+        pole_frequencies_branch1_hz=list(b1_coords.f_poles_hz),
+        pole_frequencies_branch2_hz=list(b2_coords.f_poles_hz),
         # Feasibility
         feasible=result.feasible,
         near_feasible=result.near_feasible,
@@ -181,6 +199,7 @@ def _build_candidate_result(
                 strict=False,
             )
         ),
+        hard_constraint_labels=labels,
         # Circuit summaries
         target_solution_summaries=summaries,
         coarse_grid_summary=coarse_summary,

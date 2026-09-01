@@ -232,6 +232,10 @@ def evaluate_with_overrides(
     n_cells_b1 = ctx.domain.topology.branch1_cells
     n_cells_b2 = ctx.domain.topology.branch2_cells
 
+    _l_b1 = tuple(ctx.component_limits.l_min_h for _ in range(n_cells_b1))
+    _c_b1 = tuple(ctx.component_limits.c_min_f for _ in range(n_cells_b1))
+    _l_b2 = tuple(ctx.component_limits.l_min_h for _ in range(n_cells_b2))
+    _c_b2 = tuple(ctx.component_limits.c_min_f for _ in range(n_cells_b2))
     _zeros_b1 = tuple(0.0 for _ in range(n_cells_b1))
     _zeros_b2 = tuple(0.0 for _ in range(n_cells_b2))
 
@@ -246,10 +250,10 @@ def evaluate_with_overrides(
             branch2_k_residues=_zeros_b2,
             branch1_f_poles=_zeros_b1,
             branch2_f_poles=_zeros_b2,
-            branch1_l_vals=_zeros_b1,
-            branch2_l_vals=_zeros_b2,
-            branch1_c_vals=_zeros_b1,
-            branch2_c_vals=_zeros_b2,
+            branch1_l_vals=_l_b1,
+            branch2_l_vals=_l_b2,
+            branch1_c_vals=_c_b1,
+            branch2_c_vals=_c_b2,
             component_limits_l_min=ctx.component_limits.l_min_h,
             component_limits_l_max=ctx.component_limits.l_max_h,
             component_limits_c_min=ctx.component_limits.c_min_f,

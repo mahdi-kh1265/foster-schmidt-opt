@@ -175,6 +175,7 @@ class CandidateResult(BaseModel):
     local_polish_iterations: int = 0
     local_polish_evaluations: int = 0
     solver_termination: str = ""
+    hard_constraint_labels: dict[str, str] = Field(default_factory=dict)
 
     # ---- Prompt 06: post-optimization verification summaries --------------
     # All default to None / False so Prompt-05 tests are unaffected.

@@ -181,7 +181,7 @@ class RealizationCtrl:
         c1 = make_foster(b1, cand.branch1_cells, cand.branch1_has_c0, cand.branch1_has_linf)
         c2 = make_foster(b2, cand.branch2_cells, cand.branch2_has_c0, cand.branch2_has_linf)
 
-        mock_eval_res = EvaluationResult(
+        eval_res_adapter = EvaluationResult(
             x=tuple(cand.continuous_variables),
             objective_value=cand.objective_terms.get("total", 1e9),
             base_objective_value=cand.base_objective_value,
@@ -207,7 +207,7 @@ class RealizationCtrl:
         lib = ComponentLibrary(state.library_path)
         try:
             return realize(
-                continuous_result=mock_eval_res,
+                continuous_result=eval_res_adapter,
                 context=context,
                 b1=b1,
                 b2=b2,

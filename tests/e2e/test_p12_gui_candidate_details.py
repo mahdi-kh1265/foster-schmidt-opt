@@ -1,20 +1,21 @@
-import pytest
 
+from PySide6.QtWidgets import QApplication
+
+from foster_eom.gui.controllers.optimize_ctrl import OptimizeCtrl
 from foster_eom.gui.pages.synthesize_page import SynthesizePage
 from foster_eom.gui.state import (
     EOMParams,
+    MatchParams,
+    OptimizationPresetParams,
     ProjectState,
     SourceParams,
-    TopologyParams,
-    MatchParams,
     StressParams,
-    OptimizationPresetParams,
+    TopologyParams,
 )
-from foster_eom.gui.controllers.optimize_ctrl import OptimizeCtrl
 from foster_eom.optimize.engine import OptimizationResult
-from PySide6.QtWidgets import QApplication
 
-def test_candidate_details_population():
+
+def test_candidate_details_population() -> None:
     """Verify that selecting a candidate in the SynthesizePage table
     populates the detail text view without throwing an ImportError,
     and includes all required provenance strings.
@@ -47,29 +48,30 @@ def test_candidate_details_population():
         custom_polish_top_k=1,
         custom_local_max_iterations=10
     )
-    
+
     # 2. Run engine synchronously
-    res: OptimizationResult = OptimizeCtrl.run(state)
+    from typing import cast
+    res = cast(OptimizationResult, OptimizeCtrl.run(state))
     assert len(res.candidates) > 0
-    
-    app = QApplication.instance() or QApplication([])
-    
+
+    _ = QApplication.instance() or QApplication([])
+
     # 3. Create the GUI page and inject state/results
     page = SynthesizePage()
     page.set_state(state)
     page._on_finished(res)  # Mock the worker completion
-    
+
     # Ensure the detail text is initially empty
     page.detail_text.clear()
     assert page.detail_text.toPlainText() == ""
-    
+
     # 4. Trigger selection (Candidate #1 is row 0)
     page._on_selection(0)
-    
+
     # 5. Assert detail text is populated
     text = page.detail_text.toPlainText()
     assert text != "", "Selected Candidate Details panel is blank."
-    
+
     # 6. Check required items
     assert "Candidate #1" in text
     assert "Objective:" in text
@@ -77,3 +79,17 @@ def test_candidate_details_population():
     assert "Numerical:" in text
     assert "Local polish:" in text
     assert "Hard constraints:" in text
+
+    # Assert that actual labels are populated and "hard_" keys are not directly shown
+    # (except maybe in some debugging, but we check specifically the margin lines)
+    margin_lines = [line for line in text.splitlines() if "margin =" in line]
+    if margin_lines:
+        for line in margin_lines:
+            assert "hard_" not in line, f"Canonical key leaked to GUI: {line}"
+            # Check for expected human label fragments (e.g. "Hz", "ohm", "V")
+            assert any(unit in line for unit in ("Hz", "ohm", "V", "A", "Gamma", "L", "C", "Resonance")), f"No physical unit/label found in {line}"
+
+    # Assert data-model preservation
+    best = res.candidates[0]
+    assert "hard_0" in best.constraint_margins, "Canonical keys must be preserved in CandidateResult"
+
